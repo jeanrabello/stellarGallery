@@ -200,6 +200,14 @@ export default function LoginPage() {
     window.addEventListener("message", handler);
   };
 
+  if (googleRedirecting) {
+    return (
+      <div className="min-h-screen grid place-items-center p-4">
+        <StarLoader />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen grid place-items-center p-4">
       <Card className="w-full max-w-md">
@@ -304,7 +312,6 @@ export default function LoginPage() {
           </CardFooter>
         )}
       </Card>
-      {googleRedirecting && <StarLoader label="Entrando com Google…" />}
     </div>
   );
 }

@@ -181,7 +181,7 @@ export default function GroupDetailPage() {
     }
   };
 
-  if (groupLoading) return <StarLoader label="Abrindo grupo…" />;
+  if (groupLoading) return <StarLoader />;
   if (!group) return null;
 
   const canManage = group.isMember;
@@ -479,7 +479,7 @@ export default function GroupDetailPage() {
           Álbuns do grupo
         </h2>
         {albumsLoading ? (
-          <StarLoader label="Carregando álbuns…" fullScreen={false} />
+          <StarLoader fullScreen={false} />
         ) : albums.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
             <div className="text-base font-medium">Sem álbuns por aqui</div>

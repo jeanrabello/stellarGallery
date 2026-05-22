@@ -135,7 +135,7 @@ export default function AlbumPage() {
     }
   };
 
-  if (albumLoading) return <StarLoader label="Carregando álbum…" />;
+  if (albumLoading) return <StarLoader />;
 
   return (
     <div className="space-y-6">
@@ -285,7 +285,7 @@ export default function AlbumPage() {
       </Card>
 
       {photosLoading ? (
-        <StarLoader label="Carregando fotos…" fullScreen={false} />
+        <StarLoader fullScreen={false} />
       ) : photos.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           <div className="text-base font-medium">Álbum vazio</div>

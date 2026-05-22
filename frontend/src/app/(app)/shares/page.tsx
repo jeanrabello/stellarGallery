@@ -39,7 +39,7 @@ export default function SharesPage() {
     } catch {}
   };
 
-  if (isLoading) return <StarLoader label="Carregando tokens…" />;
+  if (isLoading) return <StarLoader />;
 
   return (
     <div className="space-y-6">

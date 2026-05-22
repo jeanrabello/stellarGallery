@@ -81,7 +81,7 @@ export default function GroupsPage() {
 
   const [joinCode, setJoinCode] = React.useState("");
 
-  if (isLoading) return <StarLoader label="Carregando seus grupos…" />;
+  if (isLoading) return <StarLoader />;
 
   return (
     <div className="space-y-6">

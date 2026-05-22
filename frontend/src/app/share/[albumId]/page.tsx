@@ -60,7 +60,7 @@ export default function PublicSharePage() {
     );
   }
 
-  if (!data) return <StarLoader label="Carregando álbum compartilhado…" />;
+  if (!data) return <StarLoader />;
 
   return (
     <div className="container py-6 sm:py-8 space-y-6">

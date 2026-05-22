@@ -57,7 +57,7 @@ export default function MyGalleryPage() {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
 
-  if (isLoading) return <StarLoader label="Buscando seus álbuns…" />;
+  if (isLoading) return <StarLoader />;
 
   return (
     <div className="space-y-6">

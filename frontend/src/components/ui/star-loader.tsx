@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function StarLoader({
-  label = "Carregando…",
+  label,
   fullScreen = true,
   className,
 }: {
