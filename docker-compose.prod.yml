@@ -15,6 +15,7 @@ services:
     environment:
       - SERVICES=s3,ses
       - PERSISTENCE=1
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
     volumes:
       - localstack_data:/var/lib/localstack
     networks: [stellar]

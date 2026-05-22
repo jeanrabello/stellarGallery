@@ -23,6 +23,10 @@ services:
       - DEBUG=0
       - PERSISTENCE=1
       - AWS_DEFAULT_REGION=us-east-1
+      # Optional: paste your LocalStack auth token here (or via shell env) to
+      # unlock the Resource Browser in LocalStack Desktop / Web App.
+      # Get one at https://app.localstack.cloud → Account → Auth Tokens.
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
     ports:
       - "4566:4566"
     volumes:
