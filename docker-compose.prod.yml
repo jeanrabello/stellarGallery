@@ -13,7 +13,7 @@ services:
     image: localstack/localstack:3.8
     restart: always
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,ses
       - PERSISTENCE=1
     volumes:
       - localstack_data:/var/lib/localstack
@@ -43,6 +43,14 @@ services:
       - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost:4566/stellar-gallery}
       - S3_FORCE_PATH_STYLE=true
       - GOOGLE_MOCK_ENABLED=${GOOGLE_MOCK_ENABLED:-true}
+      # AWS SES (production: point SES_ENDPOINT to empty/AWS, drop SES_ACCESS_KEY_ID/SES_SECRET_ACCESS_KEY
+      # so the default AWS credential provider chain — IAM role / env / ~/.aws — is used.)
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-true}
+      - EMAIL_FROM=${EMAIL_FROM:-Stellar Gallery <no-reply@stellar-gallery.local>}
+      - SES_REGION=${SES_REGION:-us-east-1}
+      - SES_ENDPOINT=${SES_ENDPOINT:-http://localstack:4566}
+      - SES_ACCESS_KEY_ID=${SES_ACCESS_KEY_ID:-test}
+      - SES_SECRET_ACCESS_KEY=${SES_SECRET_ACCESS_KEY:-test}
     ports:
       - "3001:3001"
     depends_on: [mongodb, localstack]

@@ -1,27 +1,36 @@
-# ADR-0002 — Envio de emails (Resend) e login com Google (GIS)
+# ADR-0002 — Envio de emails (AWS SES) e login com Google (GIS)
 
-- **Status**: Aceito
+- **Status**: Aceito (revisão de 2026-05-22)
 - **Data**: 2026-05-22
-- **Contexto**: Preparação do lançamento inicial (MongoDB Atlas + S3 AWS + Vercel/Render).
+- **Contexto**: Preparação do lançamento inicial (MongoDB Atlas + S3 AWS + Vercel/Render). Alinhamento de provedor de email com a stack AWS já usada para S3.
 
 ## Resumo das decisões
 
-1. **Email transacional**: usaremos **Resend** como provedor, encapsulado por
-   um `EmailService` extensível.
+1. **Email transacional**: usaremos **AWS SES (SESv2)** como provedor,
+   encapsulado por um `EmailService` extensível.
+   *(Revisão deste ADR — versões anteriores avaliaram Resend; mudamos
+   para SES para concentrar a infra em AWS, reaproveitar IAM, e poder
+   subir o serviço localmente com LocalStack.)*
 2. **Login Google**: usaremos **Google Identity Services (GIS)** no
-   frontend e validação do `id_token` no backend via `google-auth-library`.
+   frontend e validação do `id_token` / `access_token` no backend.
 3. Ambas as integrações têm **fallback de dev/mock**, ativado quando as
    variáveis de produção estão vazias — assim a aplicação continua rodando
    localmente e em CI sem credenciais reais.
 
-## Por que Resend
+## Por que AWS SES
 
-- Free tier de 3k emails/mês, sem cartão.
-- API HTTP simples (sem SDK, usamos `fetch` direto — zero novas deps).
-- Permite começar com o sandbox `onboarding@resend.dev` (entrega só pra
-  caixas verificadas da conta) enquanto um domínio próprio não existe.
-- Migração futura para SES/SendGrid é trivial: basta adicionar outra
-  implementação de `EmailService`.
+- Mesma cloud onde S3 (imagens) já roda — uma só conta IAM, política e
+  bilhete a fechar.
+- **LocalStack** entrega SES "verdadeiro o suficiente" pra dev/CI: as
+  chamadas usam o mesmo SDK (`@aws-sdk/client-sesv2`), a mensagem fica
+  retida pelo emulador, dá pra inspecionar via `awslocal sesv2`.
+- Em produção, basta apontar para a região AWS real e o SDK usa a chain
+  padrão de credenciais (IAM role/instance profile, env vars, perfil
+  local, etc.).
+- Tarifa de produção fica em ~US$0,10 / mil emails — adequado para o
+  perfil transacional do app.
+- Para sair do sandbox (50 emails/dia + apenas destinos verificados)
+  basta abrir um chamado AWS depois de verificar SPF/DKIM do domínio.
 
 ## Por que GIS OAuth2 token client (popup) e não code flow nem One Tap
 
@@ -48,15 +57,21 @@
 backend/src/shared/services/email/
 ├── types.ts        # EmailKind, EmailMessage, EmailService
 ├── templates.ts    # subject/text/html por kind
-├── resend.ts       # ResendEmailService (HTTP)
+├── ses.ts          # SesEmailService (@aws-sdk/client-ses v1, compatível com LocalStack community)
 ├── mock.ts         # MockEmailService (console.log)
 └── index.ts        # getEmailService(): escolhe pelo env
 ```
 
-`getEmailService()` retorna **Resend** quando `EMAIL_ENABLED=true` **e**
-`RESEND_API_KEY` está setada; senão devolve o mock. Cada chamada de envio
-devolve `{ sent: boolean, providerMessageId? }` — o consumidor decide se
-ainda quer expor link no fallback.
+Mais um arquivo no `loaders/`:
+
+```
+backend/src/loaders/ses.ts   # garante a identity do EMAIL_FROM no LocalStack
+```
+
+`getEmailService()` retorna **SES** quando `EMAIL_ENABLED=true` **e**
+`EMAIL_FROM` + `SES_REGION` estão setados; senão devolve o mock. Cada
+chamada de envio devolve `{ sent: boolean, providerMessageId? }` — o
+consumidor decide se ainda quer expor link no fallback.
 
 Para introduzir um novo tipo de email (welcome, reset, etc.):
 1. Adicionar entrada em `EmailKind` e o payload correspondente em `types.ts`.
@@ -91,14 +106,17 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
 
 ### Backend (`backend/.env`)
 
-| Variável               | Para que serve                                            | Default      |
-| ---------------------- | --------------------------------------------------------- | ------------ |
-| `EMAIL_ENABLED`        | Liga o envio (com `RESEND_API_KEY` setada)                | `true`       |
-| `RESEND_API_KEY`       | Chave da conta Resend                                     | `""` (mock)  |
-| `EMAIL_FROM`           | Endereço remetente (precisa estar verificado no Resend)   | `Stellar Gallery <onboarding@resend.dev>` |
-| `GOOGLE_CLIENT_ID`     | Client ID do OAuth Web do projeto no Google Cloud         | `""` (mock)  |
-| `GOOGLE_MOCK_ENABLED`  | Permite popup mock quando `GOOGLE_CLIENT_ID` está vazio   | `true`       |
-| `FRONTEND_URL`         | Base usada nos links dos emails (`invite/accept?token=…`) | `http://localhost:3000` |
+| Variável                | Para que serve                                                                              | Default                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `EMAIL_ENABLED`         | Liga o envio. Quando `false`, o `MockEmailService` é usado.                                 | `true`                                             |
+| `EMAIL_FROM`            | Endereço remetente. Em produção precisa ser uma identity verificada no SES.                 | `Stellar Gallery <no-reply@stellar-gallery.local>` |
+| `SES_REGION`            | Região AWS. Aceita também `AWS_REGION` como fallback.                                       | `us-east-1`                                        |
+| `SES_ENDPOINT`          | Endpoint customizado. Use para apontar pra LocalStack em dev; deixe vazio em produção AWS.  | `http://localstack:4566` (dev)                     |
+| `SES_ACCESS_KEY_ID`     | Credencial estática. Em produção prefira **não setar** e usar IAM role / chain padrão.      | `test` (LocalStack)                                |
+| `SES_SECRET_ACCESS_KEY` | Idem.                                                                                       | `test` (LocalStack)                                |
+| `GOOGLE_CLIENT_ID`      | Client ID do OAuth Web do projeto no Google Cloud                                           | `""` (mock)                                        |
+| `GOOGLE_MOCK_ENABLED`   | Permite popup mock quando `GOOGLE_CLIENT_ID` está vazio                                     | `true`                                             |
+| `FRONTEND_URL`          | Base usada nos links dos emails (`invite/accept?token=…`)                                   | `http://localhost:3000`                            |
 
 ### Frontend (`frontend/.env`)
 
@@ -139,37 +157,72 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
 > Se você gerar o secret no Console, **nunca** o exponha no frontend —
 > ele só faz sentido como env do backend.
 
-## Passo a passo — Resend
+## Passo a passo — AWS SES
 
-1. Criar conta em https://resend.com (login com Google ou email).
-2. **API Keys → Create API Key** com permissão **Sending** → copiar a
-   key (`re_…`).
-3. Colar em `backend/.env`:
-   ```
-   RESEND_API_KEY=re_xxxxxxxx
-   ```
-4. Enquanto não tiver domínio próprio: mantenha
-   `EMAIL_FROM=Stellar Gallery <onboarding@resend.dev>`. Restrição: o
-   Resend só entrega para os emails verificados na sua conta (você
-   verifica a sua caixa no signup).
-5. Quando tiver um domínio:
-   - **Domains → Add Domain → digitar o domínio**.
-   - Configurar os registros DNS (TXT do SPF, CNAMEs do DKIM, TXT do DMARC)
-     mostrados pelo Resend.
-   - Aguardar verificação (poucos minutos a horas).
-   - Trocar `EMAIL_FROM` para `algo@seudominio.com`.
-6. Reiniciar o backend.
+### Dev (LocalStack)
 
-> **Modo dev**: se `RESEND_API_KEY` ficar vazia, todas as chamadas
-> caem no `MockEmailService` (log no stdout) — útil pra testes locais sem
-> consumir cota.
+Nada a configurar. O `docker-compose.yml` já habilita o serviço `ses`
+no LocalStack e o backend, no boot (`loaders/ses.ts`), cria a
+identity do `EMAIL_FROM` automaticamente. Para inspecionar o que foi
+enviado:
+
+```bash
+# Listar identities verificadas (deve aparecer o EMAIL_FROM)
+docker compose exec localstack awslocal sesv2 list-email-identities
+
+# Ler a "caixa de saída" do LocalStack (mensagens retidas pelo emulador)
+curl http://localhost:4566/_aws/ses
+```
+
+Se mudar `EMAIL_FROM`, basta reiniciar o backend que o loader cria a
+nova identity.
+
+### Produção (AWS real)
+
+1. **Console AWS → Amazon SES → Verified identities → Create identity**.
+   - Opção A — **Domínio** (recomendado): adicionar o domínio, copiar os
+     registros DNS (TXT do SPF + CNAMEs do DKIM) e cadastrar no provedor
+     de DNS. Aguardar verificação.
+   - Opção B — **Email único**: adicionar o `EMAIL_FROM`, confirmar o
+     link enviado pela AWS para essa caixa.
+2. **Sair do sandbox** (necessário para enviar para qualquer destino):
+   Console → SES → **Account dashboard → Request production access**.
+   Aprovação manual da AWS, normalmente em 24h.
+3. **IAM** — criar role/usuário com a policy:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+       "Resource": "*"
+     }]
+   }
+   ```
+4. Configurar envs no provedor (Render/EC2/Lambda):
+   ```
+   EMAIL_ENABLED=true
+   EMAIL_FROM=Stellar Gallery <no-reply@seu-dominio.com>
+   SES_REGION=us-east-1   # ou a região onde verificou
+   SES_ENDPOINT=          # vazio — usa AWS real
+   SES_ACCESS_KEY_ID=     # vazio se usar IAM role/profile
+   SES_SECRET_ACCESS_KEY= # vazio idem
+   ```
+5. Reiniciar o backend.
+
+> **Modo mock**: se `EMAIL_ENABLED=false` (ou `EMAIL_FROM`/`SES_REGION`
+> vazios), as chamadas caem no `MockEmailService` (log no stdout) —
+> útil pra CI/tests sem precisar de SES.
 
 ## Trade-offs assumidos
 
-- **Sandbox `onboarding@resend.dev`**: aceitável pro lançamento porque o
-  fluxo de convite já mostra o link no front (a pessoa pode copiar e
-  enviar manualmente). Quando o domínio chegar, a única coisa que muda é
-  `EMAIL_FROM`.
+- **Sandbox SES**: começamos lá. Convites pra emails não verificados
+  não saem enquanto não pedirmos liberação. Para o lançamento isso é
+  aceitável porque o fluxo de convite já mostra o link no front (a
+  pessoa pode copiar e enviar manualmente).
+- **Identity automática só em dev (LocalStack)**: em prod a verificação
+  é manual via DNS/email — o loader não cria identity quando
+  `SES_ENDPOINT` está vazio.
 - **Fallback do `id_token` no backend (GOOGLE_MOCK_ENABLED + payload sem
   verificar assinatura)**: aceitável só em dev. Em produção
   `GOOGLE_MOCK_ENABLED` **deve** ser `false` (a verificação real só
@@ -181,8 +234,14 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
 
 ## Checklist de go-live
 
-- [ ] `RESEND_API_KEY` definido no provedor (Render/etc.).
-- [ ] Domínio verificado no Resend e `EMAIL_FROM` apontando pra ele.
+- [ ] Identity do `EMAIL_FROM` verificada no SES (preferencialmente o
+      domínio inteiro com DKIM).
+- [ ] Conta SES fora do sandbox (Production access).
+- [ ] IAM com `ses:SendEmail` configurada (ou IAM role atrelada ao
+      compute em produção).
+- [ ] `EMAIL_ENABLED=true`, `EMAIL_FROM=...`, `SES_REGION=...` setados.
+- [ ] `SES_ENDPOINT` **vazio** em produção (qualquer valor força um
+      endpoint customizado — só para LocalStack/staging).
 - [ ] `GOOGLE_CLIENT_ID` (backend) e `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
       (frontend) preenchidos com a mesma client ID.
 - [ ] `GOOGLE_MOCK_ENABLED=false` em produção.

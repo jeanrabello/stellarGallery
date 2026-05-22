@@ -19,7 +19,7 @@ services:
     container_name: stellar-localstack
     restart: unless-stopped
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,ses
       - DEBUG=0
       - PERSISTENCE=1
       - AWS_DEFAULT_REGION=us-east-1
@@ -59,6 +59,12 @@ services:
       - S3_PUBLIC_BASE_URL=http://localhost:4566/stellar-gallery
       - S3_FORCE_PATH_STYLE=true
       - GOOGLE_MOCK_ENABLED=true
+      - EMAIL_ENABLED=true
+      - EMAIL_FROM=Stellar Gallery <no-reply@stellar-gallery.local>
+      - SES_REGION=us-east-1
+      - SES_ENDPOINT=http://localstack:4566
+      - SES_ACCESS_KEY_ID=test
+      - SES_SECRET_ACCESS_KEY=test
     ports:
       - "3010:3001"
     depends_on:

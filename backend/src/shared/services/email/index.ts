@@ -1,15 +1,22 @@
 import config from "@config/api";
 import { EmailService } from "./types";
 import { MockEmailService } from "./mock";
-import { ResendEmailService } from "./resend";
+import { SesEmailService } from "./ses";
 
 let instance: EmailService | null = null;
 
 export const getEmailService = (): EmailService => {
   if (instance) return instance;
-  const { apiKey, from, enabled } = config.email;
-  if (enabled && apiKey) {
-    instance = new ResendEmailService(apiKey, from);
+  const { enabled, region, endpoint, from, accessKeyId, secretAccessKey } =
+    config.email;
+  if (enabled && from && region) {
+    instance = new SesEmailService({
+      region,
+      endpoint,
+      accessKeyId,
+      secretAccessKey,
+      from,
+    });
   } else {
     instance = new MockEmailService();
   }

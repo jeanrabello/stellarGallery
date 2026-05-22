@@ -46,7 +46,10 @@ export interface Config {
   };
   email: {
     enabled: boolean;
-    apiKey: string;
     from: string;
+    region: string;
+    endpoint?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
   };
 }

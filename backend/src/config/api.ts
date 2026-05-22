@@ -53,8 +53,13 @@ const getConfig = (): Config => ({
   },
   email: {
     enabled: (process.env.EMAIL_ENABLED || "true") === "true",
-    apiKey: process.env.RESEND_API_KEY || "",
-    from: process.env.EMAIL_FROM || "Stellar Gallery <onboarding@resend.dev>",
+    from:
+      process.env.EMAIL_FROM ||
+      "Stellar Gallery <no-reply@stellar-gallery.local>",
+    region: process.env.SES_REGION || process.env.AWS_REGION || "us-east-1",
+    endpoint: process.env.SES_ENDPOINT || undefined,
+    accessKeyId: process.env.SES_ACCESS_KEY_ID || undefined,
+    secretAccessKey: process.env.SES_SECRET_ACCESS_KEY || undefined,
   },
 });
 
