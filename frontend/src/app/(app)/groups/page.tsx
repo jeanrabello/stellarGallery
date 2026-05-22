@@ -79,6 +79,8 @@ export default function GroupsPage() {
 
   const [joinCode, setJoinCode] = React.useState("");
 
+  if (isLoading) return <StarLoader label="Carregando seus grupos…" />;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -202,9 +204,7 @@ export default function GroupsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <StarLoader label="Carregando seus grupos…" />
-      ) : groups.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           <div className="text-lg font-medium">
             Você ainda não está em nenhum grupo

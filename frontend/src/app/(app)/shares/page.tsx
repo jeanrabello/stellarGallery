@@ -39,6 +39,8 @@ export default function SharesPage() {
     } catch {}
   };
 
+  if (isLoading) return <StarLoader label="Carregando tokens…" />;
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,9 +49,7 @@ export default function SharesPage() {
           Tokens emitidos para consumir seus álbuns em outras aplicações.
         </p>
       </div>
-      {isLoading ? (
-        <StarLoader label="Carregando tokens…" fullScreen={false} />
-      ) : tokens.length === 0 ? (
+      {tokens.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           Nenhum token. Abra um álbum privado e clique em <b>Compartilhar via token</b>.
         </div>

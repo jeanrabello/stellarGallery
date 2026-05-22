@@ -57,6 +57,8 @@ export default function MyGalleryPage() {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
 
+  if (isLoading) return <StarLoader label="Buscando seus álbuns…" />;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -118,9 +120,7 @@ export default function MyGalleryPage() {
         </Dialog>
       </div>
 
-      {isLoading ? (
-        <StarLoader label="Buscando seus álbuns…" />
-      ) : albums.length === 0 ? (
+      {albums.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           <div className="text-lg font-medium">Nenhum álbum ainda</div>
           <div className="text-sm text-muted-foreground">

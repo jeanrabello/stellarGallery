@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LogOut, Sparkles, Images, Users, Link2 } from "lucide-react";
+import { StarLoader } from "@/components/ui/star-loader";
 
 const navItems = [
   { href: "/gallery", label: "Minha galeria", icon: Images },
@@ -14,9 +15,15 @@ const navItems = [
 ];
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const pathname = usePathname();
 
+  if (loading)
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <StarLoader />
+      </div>
+    );
   if (!user) return <>{children}</>;
   const displayName = user.displayName || user.username;
 
