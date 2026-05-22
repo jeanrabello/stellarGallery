@@ -14,9 +14,9 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { Sparkles } from "lucide-react";
+import { GoogleIcon } from "@/components/icons/google";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,33 +24,60 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(false);
 
-  const [email, setEmail] = React.useState("");
+  const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [gEmail, setGEmail] = React.useState("usuario@gmail.com");
-  const [gName, setGName] = React.useState("Usuário Google");
 
-  const submit = async () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      await loginEmail(email, password);
+      await loginEmail(identifier, password);
       router.replace("/gallery");
     } catch (e: any) {
-      toast({ title: "Falha no login", description: e.message, variant: "destructive" });
+      toast({
+        title: "Falha no login",
+        description: e.message,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const google = async () => {
-    setLoading(true);
-    try {
-      await loginGoogle({ email: gEmail, name: gName });
-      router.replace("/gallery");
-    } catch (e: any) {
-      toast({ title: "Erro Google", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
+  const openGoogle = () => {
+    const w = 460;
+    const h = 580;
+    const left = window.screenX + (window.outerWidth - w) / 2;
+    const top = window.screenY + (window.outerHeight - h) / 2;
+    const popup = window.open(
+      "/google-mock",
+      "stellar-google",
+      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
+    );
+    if (!popup) {
+      toast({
+        title: "Pop-up bloqueado",
+        description: "Permita pop-ups para entrar com Google.",
+        variant: "destructive",
+      });
+      return;
     }
+    const handler = async (ev: MessageEvent) => {
+      if (ev.origin !== window.location.origin) return;
+      if (ev.data?.type !== "stellar-google-mock") return;
+      window.removeEventListener("message", handler);
+      try {
+        await loginGoogle(ev.data.payload);
+        router.replace("/gallery");
+      } catch (e: any) {
+        toast({
+          title: "Erro Google",
+          description: e.message,
+          variant: "destructive",
+        });
+      }
+    };
+    window.addEventListener("message", handler);
   };
 
   return (
@@ -60,68 +87,60 @@ export default function LoginPage() {
           <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-pastel-lavender via-pastel-blush to-pastel-peach grid place-items-center shadow">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-center mt-2">Bem-vinda(o) ao Stellar Gallery</CardTitle>
+          <CardTitle className="text-center mt-2">
+            Bem-vinda(o) ao Stellar Gallery
+          </CardTitle>
           <CardDescription className="text-center">
-            Faça login para gerenciar suas galerias
+            Entre com sua conta para gerenciar suas galerias
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="email">
-            <TabsList className="w-full grid grid-cols-2">
-              <TabsTrigger value="email">Email & senha</TabsTrigger>
-              <TabsTrigger value="google">Google (mock)</TabsTrigger>
-            </TabsList>
-            <TabsContent value="email" className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@exemplo.com"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                />
-              </div>
-              <Button onClick={submit} disabled={loading} className="w-full">
-                Entrar
-              </Button>
-            </TabsContent>
-            <TabsContent value="google" className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                OAuth do Google está em modo mock — informe o email/nome para criar a sessão.
-              </p>
-              <div className="space-y-1.5">
-                <Label>Email Google</Label>
-                <Input
-                  type="email"
-                  value={gEmail}
-                  onChange={(e) => setGEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={gName} onChange={(e) => setGName(e.target.value)} />
-              </div>
-              <Button
-                onClick={google}
-                disabled={loading}
-                variant="secondary"
-                className="w-full"
-              >
-                Entrar com Google (mock)
-              </Button>
-            </TabsContent>
-          </Tabs>
+        <CardContent className="space-y-4">
+          <form onSubmit={submit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="identifier">Email ou nome de usuário</Label>
+              <Input
+                id="identifier"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="voce@exemplo.com ou ana"
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Senha</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+            <Button type="submit" disabled={loading} className="w-full">
+              Entrar
+            </Button>
+          </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase tracking-wider">
+              <span className="bg-white/75 px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full bg-white/80"
+            onClick={openGoogle}
+            data-testid="google-button"
+          >
+            <GoogleIcon className="h-5 w-5" />
+            Entrar com Google
+          </Button>
         </CardContent>
         <CardFooter className="justify-center text-sm">
           Ainda não tem conta?{" "}

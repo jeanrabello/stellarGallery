@@ -12,10 +12,16 @@ export const meRoutes = async (app: FastifyTypedInstance) => {
       const me = getCurrentUser(req);
       const user = await Users().findOne({ _id: new ObjectId(me.id) });
       if (!user) throw new CustomError("User not found", 404);
+      const displayName =
+        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+        user.username;
       return {
         id: user._id!.toString(),
         email: user.email,
         username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        displayName,
         avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       };

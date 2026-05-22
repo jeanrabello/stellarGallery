@@ -31,7 +31,8 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Globe2, Lock } from "lucide-react";
+import { StarLoader } from "@/components/ui/star-loader";
 
 type Group = {
   id: string;
@@ -80,17 +81,19 @@ export default function GroupsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Grupos</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-semibold">Grupos</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Crie grupos para compartilhar álbuns com pessoas.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="secondary">Entrar com código</Button>
+              <Button variant="secondary" className="w-full sm:w-auto">
+                Entrar com código
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -133,7 +136,7 @@ export default function GroupsPage() {
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4" />
                 Novo grupo
               </Button>
@@ -166,7 +169,7 @@ export default function GroupsPage() {
                     Apenas membros podem ver álbuns deste grupo.
                   </TabsContent>
                   <TabsContent value="public" className="text-xs text-muted-foreground mt-2">
-                    Qualquer pessoa com o link pode visualizar os álbuns.
+                    Qualquer pessoa com o link pode visualizar e pedir para participar.
                   </TabsContent>
                 </Tabs>
               </div>
@@ -200,40 +203,51 @@ export default function GroupsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-muted-foreground text-sm">Carregando…</div>
+        <StarLoader label="Carregando seus grupos…" />
       ) : groups.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
-          <div className="text-lg font-medium">Você ainda não está em nenhum grupo</div>
+          <div className="text-lg font-medium">
+            Você ainda não está em nenhum grupo
+          </div>
           <div className="text-sm text-muted-foreground">
             Crie um grupo ou entre com um código.
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
-            <Card key={g.id} className="hover:shadow-md transition">
-              <CardHeader>
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle>{g.name}</CardTitle>
+            <Card key={g.id} className="overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
+              <CardHeader className="gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg">{g.name}</CardTitle>
                   <span
-                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                       g.visibility === "public"
                         ? "bg-pastel-mint text-emerald-800"
                         : "bg-pastel-lavender text-purple-800"
                     }`}
                   >
+                    {g.visibility === "public" ? (
+                      <Globe2 className="h-3 w-3" />
+                    ) : (
+                      <Lock className="h-3 w-3" />
+                    )}
                     {g.visibility}
                   </span>
                 </div>
                 {g.description && (
-                  <CardDescription>{g.description}</CardDescription>
+                  <CardDescription className="line-clamp-2">
+                    {g.description}
+                  </CardDescription>
                 )}
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground flex items-center gap-3">
+              <CardContent className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1">
-                  <Users className="h-4 w-4" /> {g.memberCount} membro(s)
+                  <Users className="h-4 w-4" /> {g.memberCount} membro
+                  {g.memberCount === 1 ? "" : "s"}
                 </span>
-                <span className="ml-auto font-mono text-xs bg-pastel-butter/60 rounded-md px-2 py-1">
+                <span className="ml-auto font-mono text-[11px] bg-pastel-butter/60 rounded-md px-2 py-1">
                   {g.joinCode}
                 </span>
               </CardContent>

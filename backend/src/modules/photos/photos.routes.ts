@@ -113,7 +113,13 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       await ensureAlbumWriteAccess(album, me.id);
 
       const uploader = await Users().findOne({ _id: new ObjectId(me.id) });
-      const uploaderName = uploader?.username || me.email;
+      const uploaderName =
+        (uploader &&
+          [uploader.firstName, uploader.lastName]
+            .filter(Boolean)
+            .join(" ")) ||
+        uploader?.username ||
+        me.email;
 
       const ext = filename.includes(".") ? filename.split(".").pop() : "bin";
       const s3Key = `albums/${album._id!.toString()}/${Date.now()}-${randomBytes(6).toString(

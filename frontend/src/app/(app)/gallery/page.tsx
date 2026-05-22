@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { StarLoader } from "@/components/ui/star-loader";
 
 type Album = {
   id: string;
@@ -58,16 +59,16 @@ export default function MyGalleryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Minha galeria</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-semibold">Minha galeria</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Seus álbuns privados. Arraste para reordenar.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Novo álbum
             </Button>
@@ -118,7 +119,7 @@ export default function MyGalleryPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-muted-foreground text-sm">Carregando…</div>
+        <StarLoader label="Buscando seus álbuns…" />
       ) : albums.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           <div className="text-lg font-medium">Nenhum álbum ainda</div>

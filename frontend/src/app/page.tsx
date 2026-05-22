@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
+import { StarLoader } from "@/components/ui/star-loader";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -10,9 +11,5 @@ export default function Home() {
     if (loading) return;
     router.replace(user ? "/gallery" : "/login");
   }, [user, loading, router]);
-  return (
-    <div className="min-h-screen grid place-items-center text-muted-foreground">
-      Carregando…
-    </div>
-  );
+  return <StarLoader />;
 }

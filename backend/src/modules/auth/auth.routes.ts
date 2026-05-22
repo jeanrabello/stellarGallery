@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
-import { Users } from "@src/shared/db/collections";
+import { Users, UserDoc } from "@src/shared/db/collections";
 import { hashPassword, comparePassword } from "@src/shared/utils";
 import { JWTAuthService } from "@src/shared/services/JWTAuthService";
 import CustomError from "@src/shared/classes/CustomError";
@@ -12,11 +12,13 @@ const auth = new JWTAuthService();
 const signupSchema = z.object({
   email: z.string().email(),
   username: z.string().min(2).max(40),
+  firstName: z.string().min(1).max(60),
+  lastName: z.string().min(1).max(60),
   password: z.string().min(6).max(100),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1),
   password: z.string().min(1),
 });
 
@@ -24,6 +26,8 @@ const googleSchema = z.object({
   idToken: z.string().optional(),
   email: z.string().email().optional(),
   name: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
   googleId: z.string().optional(),
   avatarUrl: z.string().url().optional(),
 });
@@ -37,14 +41,24 @@ const issueTokens = (user: { _id: ObjectId; email: string }) => {
   };
 };
 
+const publicUser = (u: UserDoc) => ({
+  id: u._id!.toString(),
+  email: u.email,
+  username: u.username,
+  firstName: u.firstName,
+  lastName: u.lastName,
+  displayName:
+    [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username,
+  avatarUrl: u.avatarUrl,
+});
+
 export const authRoutes = async (app: FastifyTypedInstance) => {
   app.post(
     "/signup",
     { schema: { body: signupSchema, tags: ["auth"] } },
     async (req) => {
-      const { email, username, password } = req.body as z.infer<
-        typeof signupSchema
-      >;
+      const { email, username, password, firstName, lastName } =
+        req.body as z.infer<typeof signupSchema>;
       const exists = await Users().findOne({
         $or: [{ email }, { username }],
       });
@@ -56,18 +70,15 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
       const result = await Users().insertOne({
         email,
         username,
+        firstName,
+        lastName,
         passwordHash,
         createdAt: now,
       });
-      const tokens = issueTokens({ _id: result.insertedId, email });
+      const user = (await Users().findOne({ _id: result.insertedId }))!;
       return {
-        user: {
-          id: result.insertedId.toString(),
-          email,
-          username,
-          createdAt: now,
-        },
-        ...tokens,
+        user: publicUser(user),
+        ...issueTokens({ _id: user._id!, email }),
       };
     },
   );
@@ -76,26 +87,22 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
     "/login",
     { schema: { body: loginSchema, tags: ["auth"] } },
     async (req) => {
-      const { email, password } = req.body as z.infer<typeof loginSchema>;
-      const user = await Users().findOne({ email });
+      const { identifier, password } = req.body as z.infer<typeof loginSchema>;
+      const user = await Users().findOne({
+        $or: [{ email: identifier }, { username: identifier }],
+      });
       if (!user || !user.passwordHash)
         throw new CustomError("Invalid credentials", 401);
       const ok = await comparePassword(password, user.passwordHash);
       if (!ok) throw new CustomError("Invalid credentials", 401);
       return {
-        user: {
-          id: user._id!.toString(),
-          email: user.email,
-          username: user.username,
-          avatarUrl: user.avatarUrl,
-        },
+        user: publicUser(user),
         ...issueTokens({ _id: user._id!, email: user.email }),
       };
     },
   );
 
   // Google OAuth — mock when GOOGLE_MOCK_ENABLED=true (default).
-  // Accepts either a mock payload {email, name, googleId} or an idToken (not verified in mock).
   app.post(
     "/google",
     { schema: { body: googleSchema, tags: ["auth"] } },
@@ -104,11 +111,12 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
 
       let email = body.email;
       let name = body.name;
+      let firstName = body.firstName;
+      let lastName = body.lastName;
       let googleId = body.googleId;
       let avatarUrl = body.avatarUrl;
 
       if (!email && body.idToken && config.google.mockEnabled) {
-        // Mock: decode base64 payload from a fake idToken if it looks like a JWT.
         try {
           const parts = body.idToken.split(".");
           if (parts.length >= 2) {
@@ -117,24 +125,33 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
             );
             email = payload.email;
             name = payload.name;
+            firstName = payload.given_name;
+            lastName = payload.family_name;
             googleId = payload.sub;
             avatarUrl = payload.picture;
           }
         } catch {
-          // ignore
+          /* ignore */
         }
       }
 
       if (!email) {
-        // Fallback mock identity for dev convenience.
         email = "demo.google@stellar.local";
         name = "Demo Google User";
+        firstName = "Demo";
+        lastName = "Google";
         googleId = "google-demo-1";
+      }
+
+      if ((!firstName || !lastName) && name) {
+        const parts = name.split(" ");
+        firstName = firstName || parts[0];
+        lastName = lastName || parts.slice(1).join(" ") || "Google";
       }
 
       let user = await Users().findOne({ email });
       if (!user) {
-        const username =
+        const baseUsername =
           (name || email.split("@")[0])
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
@@ -143,7 +160,9 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
           Math.floor(Math.random() * 1000);
         const res = await Users().insertOne({
           email,
-          username,
+          username: baseUsername,
+          firstName,
+          lastName,
           googleId,
           avatarUrl,
           createdAt: new Date(),
@@ -151,12 +170,7 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
         user = (await Users().findOne({ _id: res.insertedId }))!;
       }
       return {
-        user: {
-          id: user._id!.toString(),
-          email: user.email,
-          username: user.username,
-          avatarUrl: user.avatarUrl,
-        },
+        user: publicUser(user),
         ...issueTokens({ _id: user._id!, email: user.email }),
       };
     },

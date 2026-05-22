@@ -16,18 +16,22 @@ const idParam = z.object({ id: z.string() });
 
 const genCode = () => randomBytes(4).toString("hex").toUpperCase();
 
-const toDto = (g: any, currentUserId: string) => ({
-  id: g._id.toString(),
-  name: g.name,
-  description: g.description,
-  visibility: g.visibility,
-  joinCode: g.joinCode,
-  ownerId: g.ownerId.toString(),
-  isOwner: g.ownerId.toString() === currentUserId,
-  members: g.members.map((m: ObjectId) => m.toString()),
-  memberCount: g.members.length,
-  createdAt: g.createdAt,
-});
+const toDto = (g: any, currentUserId: string) => {
+  const memberIds = g.members.map((m: ObjectId) => m.toString());
+  return {
+    id: g._id.toString(),
+    name: g.name,
+    description: g.description,
+    visibility: g.visibility,
+    joinCode: g.joinCode,
+    ownerId: g.ownerId.toString(),
+    isOwner: g.ownerId.toString() === currentUserId,
+    isMember: memberIds.includes(currentUserId),
+    members: memberIds,
+    memberCount: memberIds.length,
+    createdAt: g.createdAt,
+  };
+};
 
 export const groupRoutes = async (app: FastifyTypedInstance) => {
   app.get(
@@ -96,6 +100,10 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         membersDetail: memberDocs.map((u: any) => ({
           id: u._id.toString(),
           username: u.username,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          displayName:
+            [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username,
           email: u.email,
           avatarUrl: u.avatarUrl,
         })),

@@ -5,6 +5,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -40,19 +41,19 @@ function SortableAlbumCard({ album }: { album: AlbumCard }) {
       style={style}
       className={cn(
         "group relative",
-        isDragging && "opacity-60 ring-2 ring-primary rounded-2xl",
+        isDragging && "opacity-70 ring-2 ring-primary rounded-2xl z-10",
       )}
     >
       <button
         {...attributes}
         {...listeners}
-        className="absolute top-2 left-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/80 text-muted-foreground opacity-0 group-hover:opacity-100 transition cursor-grab active:cursor-grabbing"
+        className="absolute top-2 left-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-muted-foreground shadow-sm opacity-0 group-hover:opacity-100 transition cursor-grab active:cursor-grabbing touch-none"
         aria-label="Arrastar"
       >
         <GripVertical className="h-4 w-4" />
       </button>
       <Link href={`/albums/${album.id}`}>
-        <Card className="overflow-hidden hover:shadow-md transition">
+        <Card className="overflow-hidden">
           <div className="aspect-[4/3] bg-gradient-to-br from-pastel-blush via-pastel-peach to-pastel-butter relative">
             {album.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -62,18 +63,21 @@ function SortableAlbumCard({ album }: { album: AlbumCard }) {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="absolute inset-0 grid place-items-center text-white/80">
+              <div className="absolute inset-0 grid place-items-center text-white/90">
                 <ImageIcon className="h-10 w-10" />
               </div>
             )}
-          </div>
-          <div className="p-3">
-            <div className="font-medium truncate">{album.name}</div>
-            {album.description && (
-              <div className="text-xs text-muted-foreground line-clamp-1">
-                {album.description}
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/55 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+              <div className="font-semibold text-sm sm:text-base truncate drop-shadow">
+                {album.name}
               </div>
-            )}
+              {album.description && (
+                <div className="text-[11px] sm:text-xs opacity-90 line-clamp-1 drop-shadow">
+                  {album.description}
+                </div>
+              )}
+            </div>
           </div>
         </Card>
       </Link>
@@ -93,6 +97,9 @@ export function SortableAlbumGrid({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 8 },
+    }),
   );
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -113,7 +120,7 @@ export function SortableAlbumGrid({
       onDragEnd={onDragEnd}
     >
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((album) => (
             <SortableAlbumCard key={album.id} album={album} />
           ))}

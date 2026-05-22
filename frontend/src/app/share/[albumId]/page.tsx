@@ -1,7 +1,9 @@
 "use client";
 import * as React from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { PhotoLightbox } from "@/components/photo-lightbox";
+import { StarLoader } from "@/components/ui/star-loader";
 
 type Photo = {
   id: string;
@@ -27,6 +29,7 @@ export default function PublicSharePage() {
     photos: Photo[];
   } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     if (!token) {
@@ -35,7 +38,9 @@ export default function PublicSharePage() {
     }
     const base =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-    fetch(`${base}/public/albums/${albumId}?token=${encodeURIComponent(token)}`)
+    fetch(
+      `${base}/public/albums/${albumId}?token=${encodeURIComponent(token)}`,
+    )
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).message || r.statusText);
         return r.json();
@@ -47,22 +52,20 @@ export default function PublicSharePage() {
   if (error) {
     return (
       <div className="min-h-screen grid place-items-center p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-6 text-center">
-            <div className="font-semibold">Falha no acesso</div>
-            <div className="text-sm text-muted-foreground mt-1">{error}</div>
-          </CardContent>
+        <Card className="max-w-md w-full p-6 text-center">
+          <div className="font-semibold">Falha no acesso</div>
+          <div className="text-sm text-muted-foreground mt-1">{error}</div>
         </Card>
       </div>
     );
   }
 
-  if (!data) return <div className="p-6">Carregando…</div>;
+  if (!data) return <StarLoader label="Carregando álbum compartilhado…" />;
 
   return (
-    <div className="container py-8 space-y-6">
+    <div className="container py-6 sm:py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{data.album.name}</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold">{data.album.name}</h1>
         {data.album.description && (
           <p className="text-sm text-muted-foreground">
             {data.album.description}
@@ -74,19 +77,23 @@ export default function PublicSharePage() {
           </p>
         )}
       </div>
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {data.photos.map((p) => (
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {data.photos.map((p, i) => (
           <Card key={p.id} className="overflow-hidden">
-            <div className="aspect-square bg-pastel-mint/40">
+            <button
+              type="button"
+              onClick={() => setLightboxIndex(i)}
+              className="block w-full aspect-square bg-pastel-mint/40 cursor-zoom-in"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.url}
                 alt={p.comment || "photo"}
                 className="w-full h-full object-cover"
               />
-            </div>
-            <div className="p-3 text-xs">
-              <div className="font-medium">{p.uploaderName}</div>
+            </button>
+            <div className="p-2 sm:p-3 text-[11px] sm:text-xs">
+              <div className="font-medium truncate">{p.uploaderName}</div>
               {p.comment && (
                 <div className="text-muted-foreground line-clamp-2">
                   {p.comment}
@@ -96,6 +103,17 @@ export default function PublicSharePage() {
           </Card>
         ))}
       </div>
+      <PhotoLightbox
+        photos={data.photos.map((p) => ({
+          id: p.id,
+          url: p.url,
+          uploaderName: p.uploaderName,
+          comment: p.comment,
+        }))}
+        initialIndex={lightboxIndex ?? 0}
+        open={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   );
 }

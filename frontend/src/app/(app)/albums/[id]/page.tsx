@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { Trash2, Upload, Share2, Copy } from "lucide-react";
+import { PhotoLightbox } from "@/components/photo-lightbox";
+import { StarLoader } from "@/components/ui/star-loader";
 
 type Photo = {
   id: string;
@@ -39,12 +41,12 @@ export default function AlbumPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: album } = useQuery<Album>({
+  const { data: album, isLoading: albumLoading } = useQuery<Album>({
     queryKey: ["album", id],
     queryFn: () => api<Album>(`/albums/${id}`),
   });
 
-  const { data: photos = [] } = useQuery<Photo[]>({
+  const { data: photos = [], isLoading: photosLoading } = useQuery<Photo[]>({
     queryKey: ["photos", id],
     queryFn: () => api<Photo[]>(`/photos/album/${id}`),
   });
@@ -84,6 +86,8 @@ export default function AlbumPage() {
     url: string;
   } | null>(null);
 
+  const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
+
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -93,13 +97,18 @@ export default function AlbumPage() {
     }
   };
 
+  if (albumLoading) return <StarLoader label="Carregando álbum…" />;
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+      <Card className="overflow-hidden">
+        <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold">{album?.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold">
+                {album?.name}
+              </h1>
               {album?.description && (
                 <p className="text-sm text-muted-foreground">
                   {album.description}
@@ -111,7 +120,7 @@ export default function AlbumPage() {
                   : "Álbum privado"}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {album?.ownerType === "user" && (
                 <Dialog open={openShare} onOpenChange={setOpenShare}>
                   <Button
@@ -123,11 +132,15 @@ export default function AlbumPage() {
                   </Button>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Gerar credencial de compartilhamento</DialogTitle>
+                      <DialogTitle>
+                        Gerar credencial de compartilhamento
+                      </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium">Nome (opcional)</label>
+                        <label className="text-sm font-medium">
+                          Nome (opcional)
+                        </label>
                         <Input
                           value={shareName}
                           onChange={(e) => setShareName(e.target.value)}
@@ -170,7 +183,9 @@ export default function AlbumPage() {
                       <Button
                         onClick={async () => {
                           try {
-                            const r = await createShare.mutateAsync(shareName || undefined);
+                            const r = await createShare.mutateAsync(
+                              shareName || undefined,
+                            );
                             setIssued({ token: r.token, url: r.url });
                             toast({ title: "Credencial gerada" });
                           } catch (e: any) {
@@ -243,7 +258,9 @@ export default function AlbumPage() {
         </CardContent>
       </Card>
 
-      {photos.length === 0 ? (
+      {photosLoading ? (
+        <StarLoader label="Carregando fotos…" fullScreen={false} />
+      ) : photos.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           <div className="text-base font-medium">Álbum vazio</div>
           <div className="text-sm text-muted-foreground">
@@ -251,19 +268,25 @@ export default function AlbumPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {photos.map((p) => (
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {photos.map((p, i) => (
             <Card key={p.id} className="overflow-hidden group relative">
-              <div className="aspect-square bg-pastel-blush/40">
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(i)}
+                className="block w-full aspect-square bg-pastel-blush/40 cursor-zoom-in"
+                aria-label="Abrir foto"
+                data-testid={`photo-thumb-${i}`}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={p.url}
                   alt={p.comment || "photo"}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition group-hover:scale-[1.02]"
                 />
-              </div>
-              <div className="p-3 text-xs">
-                <div className="font-medium">{p.uploaderName}</div>
+              </button>
+              <div className="p-2 sm:p-3 text-[11px] sm:text-xs">
+                <div className="font-medium truncate">{p.uploaderName}</div>
                 {p.comment && (
                   <div className="text-muted-foreground line-clamp-2">
                     {p.comment}
@@ -283,6 +306,18 @@ export default function AlbumPage() {
           ))}
         </div>
       )}
+
+      <PhotoLightbox
+        photos={photos.map((p) => ({
+          id: p.id,
+          url: p.url,
+          uploaderName: p.uploaderName,
+          comment: p.comment,
+        }))}
+        initialIndex={lightboxIndex ?? 0}
+        open={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   );
 }

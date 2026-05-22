@@ -47,3 +47,24 @@
     min-height: 100vh;
   }
 }
+
+@keyframes star-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.star-spin {
+  animation: star-spin 4s linear infinite;
+}
+
+@keyframes float-pulse {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* Hide native scrollbar in horizontal carousel */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { scrollbar-width: none; }
+
+/* Snap utilities used by lightbox carousel */
+.snap-x-mandatory { scroll-snap-type: x mandatory; }
+.snap-center { scroll-snap-align: center; }

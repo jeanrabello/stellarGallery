@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Copy, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { StarLoader } from "@/components/ui/star-loader";
 
 type ShareToken = {
   id: string;
@@ -21,7 +22,7 @@ type ShareToken = {
 export default function SharesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: tokens = [] } = useQuery<ShareToken[]>({
+  const { data: tokens = [], isLoading } = useQuery<ShareToken[]>({
     queryKey: ["shares"],
     queryFn: () => api<ShareToken[]>("/share-tokens"),
   });
@@ -46,7 +47,9 @@ export default function SharesPage() {
           Tokens emitidos para consumir seus álbuns em outras aplicações.
         </p>
       </div>
-      {tokens.length === 0 ? (
+      {isLoading ? (
+        <StarLoader label="Carregando tokens…" fullScreen={false} />
+      ) : tokens.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
           Nenhum token. Abra um álbum privado e clique em <b>Compartilhar via token</b>.
         </div>

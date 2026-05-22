@@ -5,6 +5,8 @@ export interface UserDoc {
   _id?: ObjectId;
   email: string;
   username: string;
+  firstName?: string;
+  lastName?: string;
   passwordHash?: string;
   googleId?: string;
   avatarUrl?: string;

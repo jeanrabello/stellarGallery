@@ -7,21 +7,27 @@ export type CurrentUser = {
   id: string;
   email: string;
   username: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
   avatarUrl?: string;
 };
 
 type AuthCtx = {
   user: CurrentUser | null;
   loading: boolean;
-  loginEmail: (email: string, password: string) => Promise<void>;
-  signupEmail: (
-    username: string,
-    email: string,
-    password: string,
-  ) => Promise<void>;
+  loginEmail: (identifier: string, password: string) => Promise<void>;
+  signupEmail: (data: {
+    firstName: string;
+    lastName: string;
+    username: string;
+    email: string;
+    password: string;
+  }) => Promise<void>;
   loginGoogle: (payload: {
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -29,7 +35,7 @@ type AuthCtx = {
 
 const Ctx = React.createContext<AuthCtx | null>(null);
 
-const PUBLIC_ROUTES = new Set(["/login", "/signup", "/share"]);
+const PUBLIC_ROUTES = new Set(["/login", "/signup", "/share", "/google-mock"]);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<CurrentUser | null>(null);
@@ -59,7 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (loading) return;
     const isPublic =
-      PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/share");
+      PUBLIC_ROUTES.has(pathname) ||
+      pathname.startsWith("/share") ||
+      pathname.startsWith("/google-mock");
     if (!user && !isPublic) router.replace("/login");
   }, [loading, user, pathname, router]);
 
@@ -68,32 +76,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (resp?.user) setUser(resp.user);
   };
 
-  const loginEmail = async (email: string, password: string) => {
+  const loginEmail = async (identifier: string, password: string) => {
     const resp = await api("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
       auth: false,
     });
     issue(resp);
   };
-  const signupEmail = async (
-    username: string,
-    email: string,
-    password: string,
-  ) => {
+  const signupEmail = async (data: {
+    firstName: string;
+    lastName: string;
+    username: string;
+    email: string;
+    password: string;
+  }) => {
     const resp = await api("/auth/signup", {
       method: "POST",
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify(data),
       auth: false,
     });
     issue(resp);
   };
-  const loginGoogle = async (payload: { email: string; name: string }) => {
+  const loginGoogle = async (payload: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  }) => {
     const resp = await api("/auth/google", {
       method: "POST",
       body: JSON.stringify({
         email: payload.email,
-        name: payload.name,
+        name: `${payload.firstName} ${payload.lastName}`.trim(),
+        firstName: payload.firstName,
+        lastName: payload.lastName,
         googleId: `google-${payload.email}`,
       }),
       auth: false,
