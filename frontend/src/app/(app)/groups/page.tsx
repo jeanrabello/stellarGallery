@@ -258,12 +258,12 @@ export default function GroupsPage() {
                   </CardDescription>
                 )}
               </CardHeader>
-              <CardFooter className="mt-auto flex items-center gap-3">
-                <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-muted-foreground shrink-0">
+              <CardFooter className="mt-auto flex flex-col items-stretch gap-2">
+                <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
                   <Users className="h-4 w-4" /> {g.memberCount} membro
                   {g.memberCount === 1 ? "" : "s"}
                 </span>
-                <Button asChild variant="secondary" size="sm" className="flex-1">
+                <Button asChild variant="secondary" className="w-full">
                   <Link href={`/groups/${g.id}`}>Abrir</Link>
                 </Button>
               </CardFooter>
