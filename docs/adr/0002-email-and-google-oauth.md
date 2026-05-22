@@ -99,10 +99,16 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
    - Em **Scopes**, deixar default (Google já inclui `openid email profile`).
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application**.
-   - **Authorized JavaScript origins** (origins, sem path):
+   - **Authorized JavaScript origins** (apenas scheme + host + porta,
+     **sem path nem barra no final** — o Google rejeita se você incluir):
      - `http://localhost:3020` (dev)
      - `https://<seu-dominio-vercel>` (prod)
-   - **Authorized redirect URIs**: deixe vazio — GIS popup não usa.
+     - adicione também o domínio próprio aqui quando tiver
+   - **Authorized redirect URIs**: deixe **vazio**. GIS popup entrega o
+     `id_token` direto no callback JavaScript via `postMessage` — não há
+     redirect HTTP envolvido, então nenhuma URL precisa ser registrada
+     aqui. Só precisaria preencher se um dia migrássemos para o fluxo
+     "Authorization Code" (server-side com `GOOGLE_CLIENT_SECRET`).
 4. Copiar o **Client ID** e colar em:
    - `backend/.env` → `GOOGLE_CLIENT_ID=…`
    - `frontend/.env` → `NEXT_PUBLIC_GOOGLE_CLIENT_ID=…`
