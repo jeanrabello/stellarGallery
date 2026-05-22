@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
+import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 import { Users, UserDoc } from "@src/shared/db/collections";
@@ -68,6 +69,69 @@ const fetchGoogleUserInfo = async (
   if (!profile.email)
     throw new CustomError("Google userinfo has no email", 401);
   return profile;
+};
+
+const USERNAME_RE = /^[a-z0-9](?:[a-z0-9._-]{1,38}[a-z0-9])?$/;
+const usernameFormatValid = (u: string): boolean =>
+  USERNAME_RE.test(u.toLowerCase());
+
+const suggestUsername = (seed: string): string => {
+  const base =
+    seed
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30) || "user";
+  return `${base}-${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")}`;
+};
+
+const checkUsernameAvailable = async (
+  username: string,
+): Promise<{ available: boolean; reason?: "invalid" | "taken" }> => {
+  if (!usernameFormatValid(username))
+    return { available: false, reason: "invalid" };
+  const taken = await Users().findOne({ username: username.toLowerCase() });
+  return taken ? { available: false, reason: "taken" } : { available: true };
+};
+
+const GOOGLE_SIGNUP_TICKET_AUDIENCE = "google-signup";
+const GOOGLE_SIGNUP_TICKET_TTL = "10m";
+
+interface GoogleSignupTicketPayload extends GoogleProfile {
+  aud: typeof GOOGLE_SIGNUP_TICKET_AUDIENCE;
+}
+
+const issueGoogleSignupTicket = (profile: GoogleProfile): string =>
+  jwt.sign(
+    { ...profile, aud: GOOGLE_SIGNUP_TICKET_AUDIENCE },
+    config.jwt.tokenSecret,
+    { expiresIn: GOOGLE_SIGNUP_TICKET_TTL },
+  );
+
+const verifyGoogleSignupTicket = (ticket: string): GoogleProfile => {
+  let decoded: Partial<GoogleSignupTicketPayload>;
+  try {
+    decoded = jwt.verify(
+      ticket,
+      config.jwt.tokenSecret,
+    ) as Partial<GoogleSignupTicketPayload>;
+  } catch {
+    throw new CustomError("Invalid or expired signup ticket", 401);
+  }
+  if (decoded?.aud !== GOOGLE_SIGNUP_TICKET_AUDIENCE || !decoded?.email)
+    throw new CustomError("Invalid signup ticket", 401);
+  return {
+    email: decoded.email,
+    name: decoded.name,
+    given_name: decoded.given_name,
+    family_name: decoded.family_name,
+    sub: decoded.sub,
+    picture: decoded.picture,
+  };
 };
 
 const issueTokens = (user: { _id: ObjectId; email: string }) => {
@@ -232,26 +296,96 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
         lastName = lastName || parts.slice(1).join(" ") || "Google";
       }
 
-      let user = await Users().findOne({ email });
-      if (!user) {
-        const baseUsername =
-          (name || email.split("@")[0])
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .slice(0, 30) +
-          "-" +
-          Math.floor(Math.random() * 1000);
-        const res = await Users().insertOne({
+      const existing = await Users().findOne({ email });
+      if (existing) {
+        return {
+          user: publicUser(existing),
+          ...issueTokens({ _id: existing._id!, email: existing.email }),
+        };
+      }
+
+      // First-time Google sign-in: do NOT create the user yet. Hand back a
+      // short-lived ticket carrying the verified profile and let the client
+      // collect a username, then call /auth/google/complete.
+      const profile: GoogleProfile = {
+        email,
+        name,
+        given_name: firstName,
+        family_name: lastName,
+        sub: googleId,
+        picture: avatarUrl,
+      };
+      return {
+        needsUsername: true,
+        ticket: issueGoogleSignupTicket(profile),
+        suggestedUsername: suggestUsername(name || email.split("@")[0]),
+        profile: {
           email,
-          username: baseUsername,
           firstName,
           lastName,
-          googleId,
+          displayName: [firstName, lastName].filter(Boolean).join(" ") || name,
           avatarUrl,
-          createdAt: new Date(),
-        });
-        user = (await Users().findOne({ _id: res.insertedId }))!;
-      }
+        },
+      };
+    },
+  );
+
+  app.get(
+    "/username-available",
+    {
+      schema: {
+        querystring: z.object({ username: z.string() }),
+        tags: ["auth"],
+      },
+    },
+    async (req) => {
+      const { username } = req.query as { username: string };
+      return checkUsernameAvailable(username);
+    },
+  );
+
+  app.post(
+    "/google/complete",
+    {
+      schema: {
+        body: z.object({
+          ticket: z.string(),
+          username: z.string().min(2).max(40),
+        }),
+        tags: ["auth"],
+      },
+    },
+    async (req) => {
+      const { ticket, username } = req.body as {
+        ticket: string;
+        username: string;
+      };
+      const profile = verifyGoogleSignupTicket(ticket);
+      const normalized = username.toLowerCase().trim();
+      const availability = await checkUsernameAvailable(normalized);
+      if (!availability.available)
+        throw new CustomError(
+          availability.reason === "invalid"
+            ? "Username has an invalid format"
+            : "Username is already taken",
+          409,
+        );
+
+      // Email might have been claimed by another flow in the meantime.
+      const emailTaken = await Users().findOne({ email: profile.email });
+      if (emailTaken)
+        throw new CustomError("Email already registered", 409);
+
+      const res = await Users().insertOne({
+        email: profile.email,
+        username: normalized,
+        firstName: profile.given_name,
+        lastName: profile.family_name,
+        googleId: profile.sub,
+        avatarUrl: profile.picture,
+        createdAt: new Date(),
+      });
+      const user = (await Users().findOne({ _id: res.insertedId }))!;
       return {
         user: publicUser(user),
         ...issueTokens({ _id: user._id!, email: user.email }),

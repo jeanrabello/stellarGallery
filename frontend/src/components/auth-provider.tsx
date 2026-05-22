@@ -33,10 +33,28 @@ type AuthCtx = {
     name?: string;
     googleId?: string;
     avatarUrl?: string;
-  }) => Promise<void>;
+  }) => Promise<GoogleAuthResult>;
+  completeGoogleSignup: (ticket: string, username: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
+
+export type GoogleSignupPending = {
+  needsUsername: true;
+  ticket: string;
+  suggestedUsername: string;
+  profile: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
+};
+
+export type GoogleAuthResult =
+  | { needsUsername: false }
+  | GoogleSignupPending;
 
 const Ctx = React.createContext<AuthCtx | null>(null);
 
@@ -125,13 +143,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (payload.googleId) body.googleId = payload.googleId;
     else if (payload.email) body.googleId = `google-${payload.email}`;
     if (payload.avatarUrl) body.avatarUrl = payload.avatarUrl;
-    const resp = await api("/auth/google", {
+    const resp = await api<any>("/auth/google", {
       method: "POST",
       body: JSON.stringify(body),
       auth: false,
     });
+    if (resp?.needsUsername) {
+      return {
+        needsUsername: true,
+        ticket: resp.ticket,
+        suggestedUsername: resp.suggestedUsername,
+        profile: resp.profile,
+      } as GoogleSignupPending;
+    }
+    issue(resp);
+    return { needsUsername: false };
+  };
+
+  const completeGoogleSignup = async (ticket: string, username: string) => {
+    const resp = await api("/auth/google/complete", {
+      method: "POST",
+      body: JSON.stringify({ ticket, username }),
+      auth: false,
+    });
     issue(resp);
   };
+
   const logout = () => {
     tokenStore.clear();
     setUser(null);
@@ -146,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginEmail,
         signupEmail,
         loginGoogle,
+        completeGoogleSignup,
         logout,
         refresh: fetchMe,
       }}
