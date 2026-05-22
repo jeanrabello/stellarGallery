@@ -23,7 +23,7 @@ const ensureAlbumWriteAccess = async (album: AlbumDoc, userId: string) => {
       throw new CustomError("Forbidden", 403);
     return;
   }
-  const g = await Groups().findOne({ _id: album.ownerId });
+  const g = await Groups().findOne({ _id: album.ownerId, ...activeFilter });
   if (!g) throw new CustomError("Group not found", 404);
   if (!g.members.some((m) => m.toString() === userId))
     throw new CustomError("Forbidden", 403);
@@ -67,7 +67,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         if (album.ownerId.toString() !== me.id)
           throw new CustomError("Forbidden", 403);
       } else {
-        const g = await Groups().findOne({ _id: album.ownerId });
+        const g = await Groups().findOne({ _id: album.ownerId, ...activeFilter });
         if (!g) throw new CustomError("Group not found", 404);
         const isMember = g.members.some((m) => m.toString() === me.id);
         if (!isMember && g.visibility !== "public")
@@ -195,7 +195,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       if (a.ownerType === "user") {
         isOwner = a.ownerId.toString() === me.id;
       } else {
-        const g = await Groups().findOne({ _id: a.ownerId });
+        const g = await Groups().findOne({ _id: a.ownerId, ...activeFilter });
         isOwner = g?.ownerId.toString() === me.id;
       }
       if (!isUploader && !isOwner)

@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { SortableAlbumGrid } from "@/components/album-grid";
 import { useToast } from "@/components/ui/toast";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   Mail,
   Plus,
@@ -27,6 +28,7 @@ import {
   Globe2,
   Lock,
   ImagePlus,
+  Trash2,
 } from "lucide-react";
 import { StarLoader } from "@/components/ui/star-loader";
 
@@ -59,6 +61,7 @@ type Group = {
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -133,6 +136,22 @@ export default function GroupDetailPage() {
     onError: (e: any) => {
       toast({
         title: "Falha ao atualizar capa",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteGroup = useMutation({
+    mutationFn: () => api(`/groups/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groups"] });
+      toast({ title: "Grupo excluído" });
+      router.replace("/groups");
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Erro",
         description: e.message,
         variant: "destructive",
       });
@@ -226,18 +245,17 @@ export default function GroupDetailPage() {
                 {group.visibility}
               </span>
               {canManage && (
-                <button
-                  type="button"
-                  onClick={() => copyCode(group.joinCode)}
-                  title="Copiar código"
-                  className="group/copy font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
-                >
-                  <span>{group.joinCode}</span>
-                  <Copy className="h-3 w-3 opacity-70 group-hover/copy:opacity-100" />
-                  <span className="sr-only group-hover/copy:not-sr-only group-hover/copy:ml-0.5 text-[10px] uppercase tracking-wider">
-                    copiar código
-                  </span>
-                </button>
+                <Tooltip label="Copiar código">
+                  <button
+                    type="button"
+                    onClick={() => copyCode(group.joinCode)}
+                    aria-label="Copiar código"
+                    className="font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
+                  >
+                    <span>{group.joinCode}</span>
+                    <Copy className="h-3 w-3 opacity-70" />
+                  </button>
+                </Tooltip>
               )}
             </div>
             {group.description && (
@@ -408,6 +426,41 @@ export default function GroupDetailPage() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+
+                  {group.isOwner && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" title="Excluir grupo">
+                          <Trash2 className="h-4 w-4" />
+                          Excluir grupo
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Excluir este grupo?</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                          O grupo sairá da sua lista e ninguém mais terá acesso
+                          aos álbuns compartilhados. Esta ação não pode ser
+                          desfeita pela interface.
+                        </p>
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button variant="ghost">Cancelar</Button>
+                          </DialogClose>
+                          <DialogClose asChild>
+                            <Button
+                              variant="destructive"
+                              onClick={() => deleteGroup.mutate()}
+                              disabled={deleteGroup.isPending}
+                            >
+                              Excluir
+                            </Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </>
               )}
             </div>

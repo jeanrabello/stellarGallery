@@ -23,6 +23,8 @@ export interface GroupDoc {
   joinCode: string;
   coverUrl?: string;
   coverS3Key?: string;
+  status?: "active" | "deleted";
+  deletedAt?: Date;
   createdAt: Date;
 }
 

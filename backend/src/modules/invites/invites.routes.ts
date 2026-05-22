@@ -2,7 +2,12 @@ import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
-import { Groups, Invites, Users } from "@src/shared/db/collections";
+import {
+  Groups,
+  Invites,
+  Users,
+  activeFilter,
+} from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
@@ -22,7 +27,10 @@ export const inviteRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { groupId, email } = req.body as z.infer<typeof sendSchema>;
-      const g = await Groups().findOne({ _id: new ObjectId(groupId) });
+      const g = await Groups().findOne({
+        _id: new ObjectId(groupId),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Group not found", 404);
       const isMember = g.members.some((m) => m.toString() === me.id);
       if (!isMember) throw new CustomError("Forbidden", 403);
@@ -65,7 +73,10 @@ export const inviteRoutes = async (app: FastifyTypedInstance) => {
         .toArray();
       const enriched = await Promise.all(
         received.map(async (i) => {
-          const g = await Groups().findOne({ _id: i.groupId });
+          const g = await Groups().findOne({
+            _id: i.groupId,
+            ...activeFilter,
+          });
           return {
             id: i._id!.toString(),
             token: i.token,
@@ -98,6 +109,8 @@ export const inviteRoutes = async (app: FastifyTypedInstance) => {
       if (!inv) throw new CustomError("Invalid or expired invite", 404);
       const user = await Users().findOne({ _id: new ObjectId(me.id) });
       if (!user) throw new CustomError("User not found", 404);
+      const g = await Groups().findOne({ _id: inv.groupId, ...activeFilter });
+      if (!g) throw new CustomError("Group not found", 404);
       // accept regardless of email match: but if email differs, log it.
       await Groups().updateOne(
         { _id: inv.groupId },

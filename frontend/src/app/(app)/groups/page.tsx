@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { Plus, Users, Globe2, Lock, Copy } from "lucide-react";
+import { Tooltip } from "@/components/ui/tooltip";
 import { StarLoader } from "@/components/ui/star-loader";
 
 type Group = {
@@ -217,7 +218,7 @@ export default function GroupsPage() {
       ) : (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
-            <Card key={g.id} className="overflow-hidden">
+            <Card key={g.id} className="overflow-hidden flex flex-col">
               <div className="aspect-[16/7] relative bg-gradient-to-br from-pastel-lavender via-pastel-blush to-pastel-peach">
                 {g.coverUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -257,14 +258,12 @@ export default function GroupsPage() {
                   </CardDescription>
                 )}
               </CardHeader>
-              <CardContent className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1">
+              <CardFooter className="mt-auto flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-muted-foreground shrink-0">
                   <Users className="h-4 w-4" /> {g.memberCount} membro
                   {g.memberCount === 1 ? "" : "s"}
                 </span>
-              </CardContent>
-              <CardFooter>
-                <Button asChild variant="secondary" className="w-full">
+                <Button asChild variant="secondary" size="sm" className="flex-1">
                   <Link href={`/groups/${g.id}`}>Abrir</Link>
                 </Button>
               </CardFooter>
@@ -289,17 +288,16 @@ function JoinCodeChip({ code }: { code: string }) {
     }
   };
   return (
-    <button
-      type="button"
-      onClick={onCopy}
-      title="Copiar código"
-      className="group/copy font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
-    >
-      <span>{code}</span>
-      <Copy className="h-3 w-3 opacity-70 group-hover/copy:opacity-100" />
-      <span className="sr-only group-hover/copy:not-sr-only group-hover/copy:ml-0.5 text-[10px] uppercase tracking-wider">
-        copiar código
-      </span>
-    </button>
+    <Tooltip label="Copiar código">
+      <button
+        type="button"
+        onClick={onCopy}
+        aria-label="Copiar código"
+        className="font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
+      >
+        <span>{code}</span>
+        <Copy className="h-3 w-3 opacity-70" />
+      </button>
+    </Tooltip>
   );
 }

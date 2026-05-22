@@ -49,7 +49,7 @@ const ensureUserCanAccessAlbum = async (
       throw new CustomError("Forbidden", 403);
     return;
   }
-  const g = await Groups().findOne({ _id: album.ownerId });
+  const g = await Groups().findOne({ _id: album.ownerId, ...activeFilter });
   if (!g) throw new CustomError("Group not found", 404);
   const isMember = g.members.some((m) => m.toString() === userId);
   if (!isMember && g.visibility !== "public")
@@ -133,7 +133,10 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { groupId } = req.params as { groupId: string };
-      const g = await Groups().findOne({ _id: new ObjectId(groupId) });
+      const g = await Groups().findOne({
+        _id: new ObjectId(groupId),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Group not found", 404);
       const isMember = g.members.some((m) => m.toString() === me.id);
       if (!isMember && g.visibility !== "public")
@@ -168,7 +171,10 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
       } else {
         if (!body.groupId)
           throw new CustomError("groupId required for group albums", 400);
-        const g = await Groups().findOne({ _id: new ObjectId(body.groupId) });
+        const g = await Groups().findOne({
+          _id: new ObjectId(body.groupId),
+          ...activeFilter,
+        });
         if (!g) throw new CustomError("Group not found", 404);
         const isMember = g.members.some((m) => m.toString() === me.id);
         if (!isMember) throw new CustomError("Forbidden", 403);
@@ -238,7 +244,7 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
       if (!a) throw new CustomError("Album not found", 404);
       await ensureUserCanAccessAlbum(a, me.id);
       if (a.ownerType === "group") {
-        const g = await Groups().findOne({ _id: a.ownerId });
+        const g = await Groups().findOne({ _id: a.ownerId, ...activeFilter });
         if (!g || g.ownerId.toString() !== me.id)
           throw new CustomError("Only group owner can delete", 403);
       }
@@ -277,7 +283,7 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
           : new ObjectId(body.groupId);
 
       if (body.ownerType === "group") {
-        const g = await Groups().findOne({ _id: ownerId });
+        const g = await Groups().findOne({ _id: ownerId, ...activeFilter });
         if (!g) throw new CustomError("Group not found", 404);
         const isMember = g.members.some((m) => m.toString() === me.id);
         if (!isMember) throw new CustomError("Forbidden", 403);

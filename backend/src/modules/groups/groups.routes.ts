@@ -3,7 +3,13 @@ import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
-import { Groups, Users } from "@src/shared/db/collections";
+import {
+  Groups,
+  Users,
+  Albums,
+  Photos,
+  activeFilter,
+} from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import { ensureBucketReady, getS3Client } from "@src/loaders/s3";
 import config from "@config/api";
@@ -45,7 +51,7 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
       const me = getCurrentUser(req);
       const uid = new ObjectId(me.id);
       const list = await Groups()
-        .find({ members: uid })
+        .find({ members: uid, ...activeFilter })
         .sort({ createdAt: -1 })
         .toArray();
       return list.map((g) => toDto(g, me.id));
@@ -71,6 +77,7 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         ownerId,
         members: [ownerId],
         joinCode: genCode(),
+        status: "active" as const,
         createdAt: new Date(),
       };
       const r = await Groups().insertOne(doc as any);
@@ -87,7 +94,10 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { id } = req.params as z.infer<typeof idParam>;
-      const g = await Groups().findOne({ _id: new ObjectId(id) });
+      const g = await Groups().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Group not found", 404);
       const isMember = g.members.some((m) => m.toString() === me.id);
       if (!isMember && g.visibility !== "public")
@@ -127,7 +137,10 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { joinCode } = req.body as { joinCode: string };
-      const g = await Groups().findOne({ joinCode: joinCode.toUpperCase() });
+      const g = await Groups().findOne({
+        joinCode: joinCode.toUpperCase(),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Invalid join code", 404);
       const uid = new ObjectId(me.id);
       if (g.members.some((m) => m.toString() === me.id))
@@ -151,11 +164,55 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
       const me = getCurrentUser(req);
       const { id } = req.params as z.infer<typeof idParam>;
       const uid = new ObjectId(me.id);
-      const g = await Groups().findOne({ _id: new ObjectId(id) });
+      const g = await Groups().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Group not found", 404);
       if (g.ownerId.toString() === me.id)
         throw new CustomError("Owner cannot leave its own group", 400);
       await Groups().updateOne({ _id: g._id }, { $pull: { members: uid } });
+      return { ok: true };
+    },
+  );
+
+  app.delete(
+    "/:id",
+    {
+      preHandler: app.authenticate,
+      schema: { params: idParam, tags: ["groups"] },
+    },
+    async (req) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as z.infer<typeof idParam>;
+      const g = await Groups().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
+      if (!g) throw new CustomError("Group not found", 404);
+      if (g.ownerId.toString() !== me.id)
+        throw new CustomError("Only group owner can delete", 403);
+
+      const now = new Date();
+      const groupAlbums = await Albums()
+        .find({ ownerType: "group", ownerId: g._id! })
+        .project({ _id: 1 })
+        .toArray();
+      const albumIds = groupAlbums.map((a) => a._id!);
+      if (albumIds.length) {
+        await Photos().updateMany(
+          { albumId: { $in: albumIds } },
+          { $set: { status: "deleted", deletedAt: now } },
+        );
+        await Albums().updateMany(
+          { _id: { $in: albumIds } },
+          { $set: { status: "deleted", deletedAt: now } },
+        );
+      }
+      await Groups().updateOne(
+        { _id: g._id! },
+        { $set: { status: "deleted", deletedAt: now } },
+      );
       return { ok: true };
     },
   );
@@ -170,7 +227,10 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { id } = req.params as z.infer<typeof idParam>;
-      const g = await Groups().findOne({ _id: new ObjectId(id) });
+      const g = await Groups().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!g) throw new CustomError("Group not found", 404);
       if (g.ownerId.toString() !== me.id)
         throw new CustomError("Only group owner can change the cover", 403);
