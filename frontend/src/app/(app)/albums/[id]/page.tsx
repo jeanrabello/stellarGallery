@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -16,9 +15,10 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { Trash2, Upload, Share2, Copy } from "lucide-react";
+import { Trash2, Share2, Copy } from "lucide-react";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { StarLoader } from "@/components/ui/star-loader";
+import { PhotoUploader } from "@/components/photo-uploader";
 
 type Photo = {
   id: string;
@@ -76,10 +76,7 @@ export default function AlbumPage() {
       }),
   });
 
-  const [openUpload, setOpenUpload] = React.useState(false);
   const [openShare, setOpenShare] = React.useState(false);
-  const [file, setFile] = React.useState<File | null>(null);
-  const [comment, setComment] = React.useState("");
   const [shareName, setShareName] = React.useState("");
   const [issued, setIssued] = React.useState<{
     token: string;
@@ -204,55 +201,11 @@ export default function AlbumPage() {
                 </Dialog>
               )}
 
-              <Dialog open={openUpload} onOpenChange={setOpenUpload}>
-                <Button onClick={() => setOpenUpload(true)}>
-                  <Upload className="h-4 w-4" />
-                  Enviar foto
-                </Button>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Enviar foto</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                    />
-                    <Textarea
-                      placeholder="Comentário opcional"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                    />
-                  </div>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="ghost">Cancelar</Button>
-                    </DialogClose>
-                    <Button
-                      disabled={!file || upload.isPending}
-                      onClick={async () => {
-                        if (!file) return;
-                        try {
-                          await upload.mutateAsync({ file, comment });
-                          setFile(null);
-                          setComment("");
-                          setOpenUpload(false);
-                          toast({ title: "Foto enviada!" });
-                        } catch (e: any) {
-                          toast({
-                            title: "Erro",
-                            description: e.message,
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    >
-                      Enviar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <PhotoUploader
+                onUpload={async ({ file, comment }) => {
+                  await upload.mutateAsync({ file, comment });
+                }}
+              />
             </div>
           </div>
         </CardContent>
