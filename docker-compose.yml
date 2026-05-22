@@ -1,0 +1,98 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: stellar-mongo
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - MONGO_INITDB_DATABASE=stellarGallery
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks: [stellar]
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: stellar-localstack
+    restart: unless-stopped
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - PERSISTENCE=1
+      - AWS_DEFAULT_REGION=us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+    networks: [stellar]
+
+  api:
+    build:
+      context: ./backend
+      target: development
+    container_name: stellar-api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=development
+      - APP_PORT=3001
+      - APP_HOST=0.0.0.0
+      - BASE_URL=http://localhost:3001
+      - FRONTEND_URL=http://localhost:3000
+      - MONGO_HOST=mongodb
+      - MONGO_URI=mongodb://root:root@mongodb:27017/stellarGallery?authSource=admin
+      - MONGO_DB_NAME=stellarGallery
+      - JWT_SECRET=dev-jwt-secret
+      - JWT_REFRESH_SECRET=dev-jwt-refresh-secret
+      - JWT_EXPIRES_IN=7d
+      - JWT_REFRESH_EXPIRES_IN=30d
+      - BCRYPT_SALT_ROUNDS=10
+      - S3_ENDPOINT=http://localstack:4566
+      - S3_REGION=us-east-1
+      - S3_ACCESS_KEY_ID=test
+      - S3_SECRET_ACCESS_KEY=test
+      - S3_BUCKET=stellar-gallery
+      - S3_PUBLIC_BASE_URL=http://localhost:4566/stellar-gallery
+      - S3_FORCE_PATH_STYLE=true
+      - GOOGLE_MOCK_ENABLED=true
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+      - localstack
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/package.json:/app/package.json
+      - ./backend/tsconfig.json:/app/tsconfig.json
+    networks: [stellar]
+
+  web:
+    build:
+      context: ./frontend
+      target: development
+    container_name: stellar-web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001/api
+      - INTERNAL_API_URL=http://api:3001/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks: [stellar]
+
+volumes:
+  mongo_data:
+  localstack_data:
+
+networks:
+  stellar:
+    driver: bridge
