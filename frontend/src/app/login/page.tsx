@@ -15,14 +15,20 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { GoogleIcon } from "@/components/icons/google";
+import { StarLoader } from "@/components/ui/star-loader";
 
 export default function LoginPage() {
   const router = useRouter();
   const { loginEmail, loginGoogle } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(false);
+  // While the Google popup is open OR we are exchanging the token + redirecting.
+  // Drives both the inline spinner on the button and a full-screen overlay
+  // shown after we receive an access token (until the route changes).
+  const [googleLoading, setGoogleLoading] = React.useState(false);
+  const [googleRedirecting, setGoogleRedirecting] = React.useState(false);
 
   const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -47,6 +53,7 @@ export default function LoginPage() {
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
   const loginWithAccessToken = async (accessToken: string) => {
+    setGoogleRedirecting(true);
     try {
       await loginGoogle({ accessToken });
       router.replace("/gallery");
@@ -56,6 +63,8 @@ export default function LoginPage() {
         description: e.message,
         variant: "destructive",
       });
+      setGoogleRedirecting(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -63,6 +72,7 @@ export default function LoginPage() {
     if (googleClientId) {
       // OAuth 2.0 token client — opens the classic account chooser popup
       // (lists all signed-in Google accounts + "use another account").
+      setGoogleLoading(true);
       const w = window as any;
       const start = () => {
         try {
@@ -77,13 +87,27 @@ export default function LoginPage() {
                   description: resp.error,
                   variant: "destructive",
                 });
+                setGoogleLoading(false);
                 return;
               }
               if (resp?.access_token) loginWithAccessToken(resp.access_token);
+              else setGoogleLoading(false);
+            },
+            error_callback: (err: { type?: string; message?: string }) => {
+              // Fires when the user closes the popup, denies access, etc.
+              if (err?.type && err.type !== "popup_closed") {
+                toast({
+                  title: "Erro Google",
+                  description: err.message || err.type,
+                  variant: "destructive",
+                });
+              }
+              setGoogleLoading(false);
             },
           });
           client.requestAccessToken();
         } catch (e: any) {
+          setGoogleLoading(false);
           toast({
             title: "Erro Google",
             description: e?.message || "Falha ao iniciar GIS",
@@ -99,12 +123,14 @@ export default function LoginPage() {
         s.async = true;
         s.defer = true;
         s.onload = start;
+        s.onerror = () => setGoogleLoading(false);
         document.head.appendChild(s);
       }
       return;
     }
 
     // Fallback: dev popup mock.
+    setGoogleLoading(true);
     const w = 460;
     const h = 580;
     const left = window.screenX + (window.outerWidth - w) / 2;
@@ -115,6 +141,7 @@ export default function LoginPage() {
       `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
     );
     if (!popup) {
+      setGoogleLoading(false);
       toast({
         title: "Pop-up bloqueado",
         description: "Permita pop-ups para entrar com Google.",
@@ -126,6 +153,7 @@ export default function LoginPage() {
       if (ev.origin !== window.location.origin) return;
       if (ev.data?.type !== "stellar-google-mock") return;
       window.removeEventListener("message", handler);
+      setGoogleRedirecting(true);
       try {
         await loginGoogle(ev.data.payload);
         router.replace("/gallery");
@@ -135,6 +163,8 @@ export default function LoginPage() {
           description: e.message,
           variant: "destructive",
         });
+        setGoogleRedirecting(false);
+        setGoogleLoading(false);
       }
     };
     window.addEventListener("message", handler);
@@ -196,10 +226,15 @@ export default function LoginPage() {
             variant="outline"
             className="w-full bg-white/80"
             onClick={openGoogle}
+            disabled={googleLoading || loading}
             data-testid="google-button"
           >
-            <GoogleIcon className="h-5 w-5" />
-            Entrar com Google
+            {googleLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <GoogleIcon className="h-5 w-5" />
+            )}
+            {googleLoading ? "Conectando…" : "Entrar com Google"}
           </Button>
         </CardContent>
         <CardFooter className="justify-center text-sm">
@@ -209,6 +244,7 @@ export default function LoginPage() {
           </Link>
         </CardFooter>
       </Card>
+      {googleRedirecting && <StarLoader label="Entrando com Google…" />}
     </div>
   );
 }
