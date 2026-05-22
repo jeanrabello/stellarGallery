@@ -58,10 +58,21 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
+  // Minimum dwell time for the full-screen overlay so the loader is always
+  // visible long enough to feel intentional (UX preference).
+  const OVERLAY_MIN_MS = 5000;
+  const withMinDwell = async <T,>(task: Promise<T>): Promise<T> => {
+    const [result] = await Promise.all([
+      task,
+      new Promise((r) => setTimeout(r, OVERLAY_MIN_MS)),
+    ]);
+    return result;
+  };
+
   const loginWithAccessToken = async (accessToken: string) => {
     setGoogleRedirecting(true);
     try {
-      const result = await loginGoogle({ accessToken });
+      const result = await withMinDwell(loginGoogle({ accessToken }));
       if (result.needsUsername) {
         // First-time Google user — collect a username before creating account.
         setGoogleRedirecting(false);
@@ -168,7 +179,7 @@ export default function LoginPage() {
       window.removeEventListener("message", handler);
       setGoogleRedirecting(true);
       try {
-        const result = await loginGoogle(ev.data.payload);
+        const result = await withMinDwell(loginGoogle(ev.data.payload));
         if (result.needsUsername) {
           setGoogleRedirecting(false);
           setGoogleLoading(false);
@@ -352,7 +363,10 @@ function UsernameStep({
     setSubmitting(true);
     setOverlay(true);
     try {
-      await completeGoogleSignup(pending.ticket, username.trim().toLowerCase());
+      await Promise.all([
+        completeGoogleSignup(pending.ticket, username.trim().toLowerCase()),
+        new Promise((r) => setTimeout(r, 5000)),
+      ]);
       onCreated();
     } catch (e: any) {
       toast({
