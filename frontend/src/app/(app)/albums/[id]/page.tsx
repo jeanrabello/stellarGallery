@@ -250,7 +250,7 @@ export default function AlbumPage() {
 
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" title="Excluir álbum">
+                  <Button variant="destructive" title="Excluir álbum">
                     <Trash2 className="h-4 w-4" />
                     Excluir álbum
                   </Button>

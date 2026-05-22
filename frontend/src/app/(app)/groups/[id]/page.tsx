@@ -430,7 +430,7 @@ export default function GroupDetailPage() {
                   {group.isOwner && (
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" title="Excluir grupo">
+                        <Button variant="destructive" title="Excluir grupo">
                           <Trash2 className="h-4 w-4" />
                           Excluir grupo
                         </Button>

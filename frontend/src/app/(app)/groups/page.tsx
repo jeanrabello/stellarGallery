@@ -95,7 +95,7 @@ export default function GroupsPage() {
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="secondary" className="w-full sm:w-auto">
+              <Button className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-600/90">
                 Entrar com código
               </Button>
             </DialogTrigger>
