@@ -218,18 +218,16 @@ export default function GroupsPage() {
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
             <Card key={g.id} className="overflow-hidden">
-              {g.coverUrl ? (
-                <div className="aspect-[16/7] relative bg-pastel-blush/40">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+              <div className="aspect-[16/7] relative bg-gradient-to-br from-pastel-lavender via-pastel-blush to-pastel-peach">
+                {g.coverUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={g.coverUrl}
                     alt={g.name}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
-                </div>
-              ) : (
-                <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
-              )}
+                )}
+              </div>
               <CardHeader className="gap-2">
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
