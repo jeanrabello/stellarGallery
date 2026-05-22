@@ -116,8 +116,11 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
 6. Testar: botão **"Entrar com Google"** deve abrir o seletor real do
    Google e logar com a conta escolhida.
 
-> O `GOOGLE_CLIENT_SECRET` não é usado neste fluxo (GIS popup), pode
-> ficar vazio. Será necessário só se um dia adotarmos o code flow.
+> O `GOOGLE_CLIENT_SECRET` **não** é usado neste fluxo (GIS popup), pode
+> ficar vazio. Ele só seria necessário se um dia adotarmos o
+> Authorization Code flow (troca server-side de `code` por tokens).
+> Se você gerar o secret no Console, **nunca** o exponha no frontend —
+> ele só faz sentido como env do backend.
 
 ## Passo a passo — Resend
 
