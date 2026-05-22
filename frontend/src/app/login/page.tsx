@@ -46,9 +46,9 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
-  const loginWithIdToken = async (idToken: string) => {
+  const loginWithAccessToken = async (accessToken: string) => {
     try {
-      await loginGoogle({ idToken });
+      await loginGoogle({ accessToken });
       router.replace("/gallery");
     } catch (e: any) {
       toast({
@@ -61,19 +61,28 @@ export default function LoginPage() {
 
   const openGoogle = () => {
     if (googleClientId) {
-      // Real Google Identity Services flow.
+      // OAuth 2.0 token client — opens the classic account chooser popup
+      // (lists all signed-in Google accounts + "use another account").
       const w = window as any;
       const start = () => {
         try {
-          w.google.accounts.id.initialize({
+          const client = w.google.accounts.oauth2.initTokenClient({
             client_id: googleClientId,
-            callback: (resp: { credential?: string }) => {
-              if (resp?.credential) loginWithIdToken(resp.credential);
+            scope: "openid email profile",
+            prompt: "select_account",
+            callback: (resp: { access_token?: string; error?: string }) => {
+              if (resp?.error) {
+                toast({
+                  title: "Erro Google",
+                  description: resp.error,
+                  variant: "destructive",
+                });
+                return;
+              }
+              if (resp?.access_token) loginWithAccessToken(resp.access_token);
             },
-            ux_mode: "popup",
-            auto_select: false,
           });
-          w.google.accounts.id.prompt();
+          client.requestAccessToken();
         } catch (e: any) {
           toast({
             title: "Erro Google",
@@ -82,7 +91,7 @@ export default function LoginPage() {
           });
         }
       };
-      if (w.google?.accounts?.id) {
+      if (w.google?.accounts?.oauth2) {
         start();
       } else {
         const s = document.createElement("script");

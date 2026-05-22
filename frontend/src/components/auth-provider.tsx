@@ -26,6 +26,7 @@ type AuthCtx = {
   }) => Promise<void>;
   loginGoogle: (payload: {
     idToken?: string;
+    accessToken?: string;
     email?: string;
     firstName?: string;
     lastName?: string;
@@ -104,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
   const loginGoogle = async (payload: {
     idToken?: string;
+    accessToken?: string;
     email?: string;
     firstName?: string;
     lastName?: string;
@@ -113,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }) => {
     const body: Record<string, unknown> = {};
     if (payload.idToken) body.idToken = payload.idToken;
+    if (payload.accessToken) body.accessToken = payload.accessToken;
     if (payload.email) body.email = payload.email;
     if (payload.firstName) body.firstName = payload.firstName;
     if (payload.lastName) body.lastName = payload.lastName;

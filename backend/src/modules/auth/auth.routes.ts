@@ -33,6 +33,7 @@ const loginSchema = z.object({
 
 const googleSchema = z.object({
   idToken: z.string().optional(),
+  accessToken: z.string().optional(),
   email: z.string().email().optional(),
   name: z.string().optional(),
   firstName: z.string().optional(),
@@ -40,6 +41,34 @@ const googleSchema = z.object({
   googleId: z.string().optional(),
   avatarUrl: z.string().url().optional(),
 });
+
+interface GoogleProfile {
+  email: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  sub?: string;
+  picture?: string;
+}
+
+const fetchGoogleUserInfo = async (
+  accessToken: string,
+): Promise<GoogleProfile> => {
+  const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new CustomError(
+      `Invalid Google access_token: ${detail || res.statusText}`,
+      401,
+    );
+  }
+  const profile = (await res.json()) as GoogleProfile;
+  if (!profile.email)
+    throw new CustomError("Google userinfo has no email", 401);
+  return profile;
+};
 
 const issueTokens = (user: { _id: ObjectId; email: string }) => {
   const payload = { id: user._id.toString(), email: user.email };
@@ -131,7 +160,16 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
       const hasRealConfig = !!config.google.clientId;
       const useMock = !hasRealConfig && config.google.mockEnabled;
 
-      if (body.idToken && hasRealConfig) {
+      if (body.accessToken) {
+        // OAuth2 token client (popup flow). Resolve profile via userinfo.
+        const profile = await fetchGoogleUserInfo(body.accessToken);
+        email = profile.email;
+        name = profile.name;
+        firstName = profile.given_name;
+        lastName = profile.family_name;
+        googleId = profile.sub;
+        avatarUrl = profile.picture;
+      } else if (body.idToken && hasRealConfig) {
         // Real verification path.
         let ticket;
         try {

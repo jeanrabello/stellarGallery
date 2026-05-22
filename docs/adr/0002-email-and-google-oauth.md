@@ -23,13 +23,22 @@
 - Migração futura para SES/SendGrid é trivial: basta adicionar outra
   implementação de `EmailService`.
 
-## Por que Google Identity Services (popup) e não OAuth code flow
+## Por que GIS OAuth2 token client (popup) e não code flow nem One Tap
 
-- Não precisamos de tokens do Google além da autenticação (não acessamos
-  Drive, Calendar, etc.).
-- GIS entrega um `id_token` curto que o backend valida — não precisa
-  callback URL pública nem armazenar refresh tokens do Google.
-- Implementação no front é declarativa (`google.accounts.id.initialize`).
+- Não precisamos de tokens longos do Google (não acessamos Drive,
+  Calendar, etc.) — só queremos autenticar.
+- O **OAuth2 token client** (`google.accounts.oauth2.initTokenClient`)
+  abre o popup clássico com seletor de conta (todas as contas logadas
+  no navegador + "use outra conta"). Funciona mesmo se o usuário ainda
+  não está logado no Google — ele faz login dentro do popup.
+- Recebemos um `access_token` curto que o backend troca por perfil via
+  `https://www.googleapis.com/oauth2/v3/userinfo`. Não precisa armazenar
+  refresh tokens nem callback URL pública.
+- Descartamos o **One Tap** (`google.accounts.id.prompt()`) porque ele
+  só aparece quando o usuário já tem sessão Google ativa — em sessões
+  novas o prompt falha silenciosamente.
+- Descartamos o **Authorization Code flow** porque exigiria endpoint
+  `/callback` e o `GOOGLE_CLIENT_SECRET` server-side, sem ganho.
 
 ## Arquitetura
 
@@ -57,17 +66,25 @@ Para introduzir um novo tipo de email (welcome, reset, etc.):
 ### Google OAuth
 
 - **Backend (`/api/auth/google`)**:
-  - Se `body.idToken` existe **e** `GOOGLE_CLIENT_ID` está setado:
-    `oauthClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID })`.
-    Em falha → 401.
+  - Se `body.accessToken` (caminho preferido — popup token client):
+    chama `https://www.googleapis.com/oauth2/v3/userinfo` com o token
+    no header `Authorization: Bearer …` e usa o JSON retornado
+    (`email`, `name`, `given_name`, `family_name`, `sub`, `picture`).
+  - Senão, se `body.idToken` **e** `GOOGLE_CLIENT_ID` está setado:
+    `oauthClient.verifyIdToken({ idToken, audience })` (caminho legado /
+    One Tap). Em falha → 401.
   - Senão, se `GOOGLE_MOCK_ENABLED=true`: decodifica payload do JWT sem
     verificar assinatura (só dev), ou usa um user demo.
   - Sem nenhum dos dois → 400 "Google sign-in is not configured".
+  - Em qualquer caso, usuário inexistente é **criado** automaticamente;
+    se já existir (por email) só faz login.
 - **Frontend (`/login`)**:
   - Se `NEXT_PUBLIC_GOOGLE_CLIENT_ID` está setado: carrega
     `https://accounts.google.com/gsi/client`, chama
-    `google.accounts.id.initialize` + `prompt`, recebe `credential`
-    (id_token) no callback e posta pro backend.
+    `google.accounts.oauth2.initTokenClient({ scope: "openid email profile",
+    prompt: "select_account" })` e dispara `requestAccessToken()`. O popup
+    classico abre, usuário escolhe conta (ou faz login de outra), o
+    `access_token` retornado vai pro backend.
   - Senão: abre `/google-mock` (popup demo).
 
 ## Variáveis de ambiente
