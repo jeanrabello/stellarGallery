@@ -2,10 +2,16 @@
 
 Galeria online com álbuns privados e compartilhados em grupos, tons pastéis, drag-and-drop e compartilhamento de álbuns via token para integrações externas.
 
-- **Backend**: Fastify 5 + TypeScript + MongoDB + AWS SDK S3 v3 (LocalStack para dev).
-- **Frontend**: Next.js 14 (App Router) + Tailwind + componentes shadcn-inspired + dnd-kit + React Query.
+<p align="center">
+  <img src="docs/screenshot-gallery.png" alt="Galeria principal" width="80%" />
+</p>
+
+- **Backend** (`backend/`): Fastify 5 + TypeScript + MongoDB + AWS SDK S3 v3 (LocalStack para dev).
+- **Frontend** (`frontend/`): Next.js 14 (App Router) + Tailwind + componentes shadcn-inspired + dnd-kit + React Query.
 - **Storage**: LocalStack S3 com bucket público (`stellar-gallery`) criado on-boot/lazy.
 - **Auth**: JWT (Bearer) com signup/login email+senha e login Google mockado.
+
+> 📁 **Documentação por pacote**: veja [`backend/README.md`](backend/README.md) e [`frontend/README.md`](frontend/README.md) para detalhes de cada lado da stack.
 
 ## Subindo o ambiente local
 
@@ -28,6 +34,40 @@ docker compose up -d
 JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+## Tour da aplicação
+
+### Login / Signup com paleta pastel
+<p align="center">
+  <img src="docs/screenshot-login-google.png" alt="Tela de login com botão do Google" width="80%" />
+</p>
+
+### Galeria de álbuns (com drag-and-drop)
+<p align="center">
+  <img src="docs/screenshot-album.png" alt="Listagem de álbuns" width="80%" />
+</p>
+
+### Lightbox + carrossel de fotos
+<p align="center">
+  <img src="docs/screenshot-lightbox.png" alt="Lightbox de fotos" width="80%" />
+</p>
+
+### Upload com dropzone moderno (preview + comentário por arquivo)
+<p align="center">
+  <img src="docs/screenshot-uploader-files.png" alt="Uploader com previews" width="80%" />
+</p>
+
+### Star loader full-screen durante transições
+<p align="center">
+  <img src="docs/screenshot-loader.png" alt="Loading state com estrela" width="60%" />
+</p>
+
+### Mobile-first
+<p align="center">
+  <img src="docs/screenshot-album-mobile.png" alt="Álbum no mobile" width="32%" />
+  &nbsp;
+  <img src="docs/screenshot-lightbox-mobile.png" alt="Lightbox no mobile" width="32%" />
+</p>
+
 ## Critérios de aceite atendidos
 
 - ✅ Cadastro/login com email+senha; login Google **mockado** (não precisa de credenciais reais).
@@ -44,7 +84,7 @@ JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose -f docker-compose.prod.yml 
 
 ```
 .
-├── backend/                 # Fastify API
+├── backend/                 # Fastify API — ver backend/README.md
 │   ├── src/
 │   │   ├── app.ts, server.ts
 │   │   ├── config/          # api config + types
@@ -53,17 +93,19 @@ JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose -f docker-compose.prod.yml 
 │   │   ├── plugins/         # swagger, rate-limit
 │   │   └── shared/          # middlewares, services, db collections
 │   └── Dockerfile
-├── frontend/                # Next.js app
+├── frontend/                # Next.js app — ver frontend/README.md
 │   ├── src/app/             # /(app), /login, /signup, /invites, /share
 │   ├── src/components/      # ui (shadcn-style) + providers + album-grid (dnd-kit)
 │   ├── src/lib/             # api client (Bearer token), utils
 │   └── Dockerfile
 ├── docker-compose.yml       # dev stack
 ├── docker-compose.prod.yml  # prod stack
-└── docs/adr/0001-…          # decisões de arquitetura e inferências
+└── docs/
+    ├── adr/0001-…           # decisões de arquitetura e inferências
+    └── screenshot-*.png     # capturas usadas neste README
 ```
 
-## API principais endpoints
+## API — endpoints principais
 
 | Método | Caminho                                | Auth          | Descrição                                       |
 | ------ | -------------------------------------- | ------------- | ----------------------------------------------- |
@@ -107,4 +149,4 @@ A resposta inclui os metadados do álbum + array `photos` com `url` para cada im
 
 ## Decisões e inferências
 
-Veja `docs/adr/0001-architecture-and-inferences.md` para o registro completo (incluindo mocks de Google OAuth e envio de email, simplificações do template original, etc).
+Veja [`docs/adr/0001-architecture-and-inferences.md`](docs/adr/0001-architecture-and-inferences.md) para o registro completo (incluindo mocks de Google OAuth e envio de email, simplificações do template original, etc).
