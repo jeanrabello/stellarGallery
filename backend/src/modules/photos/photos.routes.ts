@@ -12,7 +12,7 @@ import {
   AlbumDoc,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
-import { getS3Client } from "@src/loaders/s3";
+import { getS3Client, ensureBucketReady } from "@src/loaders/s3";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
 
@@ -120,6 +120,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         "hex",
       )}.${ext}`;
 
+      await ensureBucketReady();
       const s3 = getS3Client();
       await s3.send(
         new PutObjectCommand({
