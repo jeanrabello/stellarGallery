@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,10 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { Trash2, Share2, Copy } from "lucide-react";
+import { Trash2, Share2, Copy, Star, StarOff } from "lucide-react";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { StarLoader } from "@/components/ui/star-loader";
 import { PhotoUploader } from "@/components/photo-uploader";
@@ -34,10 +35,12 @@ type Album = {
   name: string;
   description?: string;
   ownerType: "user" | "group";
+  coverPhotoId?: string | null;
 };
 
 export default function AlbumPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -74,6 +77,44 @@ export default function AlbumPage() {
         method: "POST",
         body: JSON.stringify({ albumId: id, name }),
       }),
+  });
+
+  const setCover = useMutation({
+    mutationFn: (photoId: string) =>
+      api(`/albums/${id}/cover`, {
+        method: "PATCH",
+        body: JSON.stringify({ photoId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["album", id] });
+      qc.invalidateQueries({ queryKey: ["albums", "mine"] });
+      qc.invalidateQueries({ queryKey: ["group-albums"] });
+      toast({ title: "Capa definida" });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Erro",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAlbum = useMutation({
+    mutationFn: () => api(`/albums/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["albums", "mine"] });
+      qc.invalidateQueries({ queryKey: ["group-albums"] });
+      toast({ title: "Álbum excluído" });
+      router.replace("/gallery");
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Erro",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const [openShare, setOpenShare] = React.useState(false);
@@ -206,6 +247,38 @@ export default function AlbumPage() {
                   await upload.mutateAsync({ file, comment });
                 }}
               />
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" title="Excluir álbum">
+                    <Trash2 className="h-4 w-4" />
+                    Excluir álbum
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Excluir este álbum?</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-sm text-muted-foreground">
+                    O álbum sairá da sua galeria. Esta ação não pode ser
+                    desfeita pela interface.
+                  </p>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="ghost">Cancelar</Button>
+                    </DialogClose>
+                    <DialogClose asChild>
+                      <Button
+                        variant="destructive"
+                        onClick={() => deleteAlbum.mutate()}
+                        disabled={deleteAlbum.isPending}
+                      >
+                        Excluir
+                      </Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </CardContent>
@@ -222,41 +295,66 @@ export default function AlbumPage() {
         </div>
       ) : (
         <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {photos.map((p, i) => (
-            <Card key={p.id} className="overflow-hidden group relative">
-              <button
-                type="button"
-                onClick={() => setLightboxIndex(i)}
-                className="block w-full aspect-square bg-pastel-blush/40 cursor-zoom-in"
-                aria-label="Abrir foto"
-                data-testid={`photo-thumb-${i}`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.url}
-                  alt={p.comment || "photo"}
-                  className="w-full h-full object-cover transition group-hover:scale-[1.02]"
-                />
-              </button>
-              <div className="p-2 sm:p-3 text-[11px] sm:text-xs">
-                <div className="font-medium truncate">{p.uploaderName}</div>
-                {p.comment && (
-                  <div className="text-muted-foreground line-clamp-2">
-                    {p.comment}
+          {photos.map((p, i) => {
+            const isCover =
+              !!album?.coverPhotoId && album.coverPhotoId === p.id;
+            const onlyPhoto = photos.length === 1;
+            return (
+              <Card key={p.id} className="overflow-hidden group relative">
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(i)}
+                  className="block w-full aspect-square bg-pastel-blush/40 cursor-zoom-in"
+                  aria-label="Abrir foto"
+                  data-testid={`photo-thumb-${i}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.url}
+                    alt={p.comment || "photo"}
+                    className="w-full h-full object-cover transition group-hover:scale-[1.02]"
+                  />
+                </button>
+                {(isCover || onlyPhoto) && (
+                  <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/90 text-[10px] uppercase tracking-wider px-2 py-0.5 shadow-sm">
+                    <Star className="h-3 w-3 text-amber-500 fill-amber-400" />
+                    capa
                   </div>
                 )}
-              </div>
-              <Button
-                size="icon"
-                variant="destructive"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-7 w-7"
-                onClick={() => del.mutate(p.id)}
-                title="Excluir"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </Card>
-          ))}
+                <div className="p-2 sm:p-3 text-[11px] sm:text-xs">
+                  <div className="font-medium truncate">{p.uploaderName}</div>
+                  {p.comment && (
+                    <div className="text-muted-foreground line-clamp-2">
+                      {p.comment}
+                    </div>
+                  )}
+                </div>
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                  {!isCover && photos.length > 1 && (
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="h-7 w-7"
+                      onClick={() => setCover.mutate(p.id)}
+                      title="Definir como capa"
+                      disabled={setCover.isPending}
+                    >
+                      <StarOff className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="h-7 w-7"
+                    onClick={() => del.mutate(p.id)}
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 

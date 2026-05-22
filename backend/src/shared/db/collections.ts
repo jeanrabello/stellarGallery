@@ -21,6 +21,8 @@ export interface GroupDoc {
   ownerId: ObjectId;
   members: ObjectId[];
   joinCode: string;
+  coverUrl?: string;
+  coverS3Key?: string;
   createdAt: Date;
 }
 
@@ -32,6 +34,8 @@ export interface AlbumDoc {
   ownerId: ObjectId;
   coverPhotoId?: ObjectId;
   position: number;
+  status?: "active" | "deleted";
+  deletedAt?: Date;
   createdAt: Date;
 }
 
@@ -46,6 +50,8 @@ export interface PhotoDoc {
   contentType: string;
   size: number;
   position: number;
+  status?: "active" | "deleted";
+  deletedAt?: Date;
   createdAt: Date;
 }
 
@@ -78,3 +84,7 @@ export const Photos = () => getMongoDb().collection<PhotoDoc>("photos");
 export const Invites = () => getMongoDb().collection<InviteDoc>("invites");
 export const ShareTokens = () =>
   getMongoDb().collection<ShareTokenDoc>("share_tokens");
+
+// Soft-delete aware filter (default for any read).
+// Docs migrated from before this field have status === undefined and are treated as active.
+export const activeFilter = { status: { $ne: "deleted" as const } };

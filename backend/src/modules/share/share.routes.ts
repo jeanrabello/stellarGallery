@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
-import { Albums, ShareTokens } from "@src/shared/db/collections";
+import { Albums, ShareTokens, activeFilter } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
@@ -44,7 +44,10 @@ export const shareRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { albumId, name } = req.body as z.infer<typeof createSchema>;
-      const album = await Albums().findOne({ _id: new ObjectId(albumId) });
+      const album = await Albums().findOne({
+        _id: new ObjectId(albumId),
+        ...activeFilter,
+      });
       if (!album) throw new CustomError("Album not found", 404);
       // Only allowed for private user-owned albums (the requirement).
       if (album.ownerType !== "user" || album.ownerId.toString() !== me.id)

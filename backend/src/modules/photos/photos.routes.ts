@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 import {
   Albums,
@@ -10,6 +10,7 @@ import {
   Users,
   PhotoDoc,
   AlbumDoc,
+  activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import { getS3Client, ensureBucketReady } from "@src/loaders/s3";
@@ -55,7 +56,10 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { albumId } = req.params as { albumId: string };
-      const album = await Albums().findOne({ _id: new ObjectId(albumId) });
+      const album = await Albums().findOne({
+        _id: new ObjectId(albumId),
+        ...activeFilter,
+      });
       if (!album) throw new CustomError("Album not found", 404);
 
       // read access (group public allowed)
@@ -71,7 +75,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       }
 
       const list = await Photos()
-        .find({ albumId: album._id! })
+        .find({ albumId: album._id!, ...activeFilter })
         .sort({ position: 1, createdAt: 1 })
         .toArray();
       return list.map(toDto);
@@ -108,7 +112,10 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       if (!albumId) throw new CustomError("albumId required", 400);
       if (!fileBuffer) throw new CustomError("file required", 400);
 
-      const album = await Albums().findOne({ _id: new ObjectId(albumId) });
+      const album = await Albums().findOne({
+        _id: new ObjectId(albumId),
+        ...activeFilter,
+      });
       if (!album) throw new CustomError("Album not found", 404);
       await ensureAlbumWriteAccess(album, me.id);
 
@@ -140,7 +147,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       const url = `${config.s3.publicBaseUrl}/${s3Key}`;
 
       const lastPos = await Photos()
-        .find({ albumId: album._id! })
+        .find({ albumId: album._id!, ...activeFilter })
         .sort({ position: -1 })
         .limit(1)
         .toArray();
@@ -156,6 +163,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         contentType,
         size: fileBuffer.length,
         position,
+        status: "active",
         createdAt: new Date(),
       };
       const r = await Photos().insertOne(doc as any);
@@ -175,11 +183,13 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { id } = req.params as { id: string };
-      const p = await Photos().findOne({ _id: new ObjectId(id) });
+      const p = await Photos().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!p) throw new CustomError("Photo not found", 404);
-      const a = await Albums().findOne({ _id: p.albumId });
+      const a = await Albums().findOne({ _id: p.albumId, ...activeFilter });
       if (!a) throw new CustomError("Album not found", 404);
-      // Only uploader or album owner (user or group owner) can delete
       const isUploader = p.uploaderId.toString() === me.id;
       let isOwner = false;
       if (a.ownerType === "user") {
@@ -191,17 +201,16 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
       if (!isUploader && !isOwner)
         throw new CustomError("Forbidden", 403);
 
-      try {
-        await getS3Client().send(
-          new DeleteObjectCommand({
-            Bucket: config.s3.bucket,
-            Key: p.s3Key,
-          }),
+      await Photos().updateOne(
+        { _id: p._id! },
+        { $set: { status: "deleted", deletedAt: new Date() } },
+      );
+      if (a.coverPhotoId && a.coverPhotoId.toString() === p._id!.toString()) {
+        await Albums().updateOne(
+          { _id: a._id! },
+          { $unset: { coverPhotoId: "" } },
         );
-      } catch {
-        // ignore
       }
-      await Photos().deleteOne({ _id: p._id! });
       return { ok: true };
     },
   );

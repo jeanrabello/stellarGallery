@@ -19,7 +19,15 @@ import {
 } from "@/components/ui/dialog";
 import { SortableAlbumGrid } from "@/components/album-grid";
 import { useToast } from "@/components/ui/toast";
-import { Mail, Plus, Copy, UserPlus, Globe2, Lock } from "lucide-react";
+import {
+  Mail,
+  Plus,
+  Copy,
+  UserPlus,
+  Globe2,
+  Lock,
+  ImagePlus,
+} from "lucide-react";
 import { StarLoader } from "@/components/ui/star-loader";
 
 type Album = {
@@ -38,6 +46,7 @@ type Group = {
   isOwner: boolean;
   isMember: boolean;
   memberCount: number;
+  coverUrl?: string | null;
   membersDetail: Array<{
     id: string;
     username: string;
@@ -110,6 +119,26 @@ export default function GroupDetailPage() {
     },
   });
 
+  const uploadCover = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return api(`/groups/${id}/cover`, { method: "POST", body: fd });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["group", id] });
+      qc.invalidateQueries({ queryKey: ["groups"] });
+      toast({ title: "Capa atualizada" });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Falha ao atualizar capa",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [openNew, setOpenNew] = React.useState(false);
@@ -119,11 +148,12 @@ export default function GroupDetailPage() {
     link: string;
     code: string;
   } | null>(null);
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
 
-  const copy = async (text: string) => {
+  const copyCode = async (code: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      toast({ title: "Copiado!" });
+      await navigator.clipboard.writeText(code);
+      toast({ title: "Código copiado!" });
     } catch {
       toast({ title: "Não foi possível copiar", variant: "destructive" });
     }
@@ -137,56 +167,109 @@ export default function GroupDetailPage() {
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden">
-        <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
+        {/* Cover */}
+        <div className="relative aspect-[16/5] bg-gradient-to-br from-pastel-lavender via-pastel-blush to-pastel-peach">
+          {group.coverUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={group.coverUrl}
+              alt={group.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          {group.isOwner && (
+            <>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadCover.mutate(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="absolute bottom-3 right-3 shadow"
+                onClick={() => coverInputRef.current?.click()}
+                disabled={uploadCover.isPending}
+              >
+                <ImagePlus className="h-4 w-4" />
+                {group.coverUrl ? "Trocar capa" : "Adicionar capa"}
+              </Button>
+            </>
+          )}
+        </div>
+
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          {/* Title + tag + join code (inline) */}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-semibold break-words">
                 {group.name}
               </h1>
-              {group.description && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {group.description}
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                <span
-                  className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                    group.visibility === "public"
-                      ? "bg-pastel-mint text-emerald-800"
-                      : "bg-pastel-lavender text-purple-800"
-                  }`}
-                >
-                  {group.visibility === "public" ? (
-                    <Globe2 className="h-3 w-3" />
-                  ) : (
-                    <Lock className="h-3 w-3" />
-                  )}
-                  {group.visibility}
-                </span>
-                {canManage && (
-                  <>
-                    <span className="font-mono bg-pastel-butter/70 px-2 py-0.5 rounded-md">
-                      {group.joinCode}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copy(group.joinCode)}
-                    >
-                      <Copy className="h-3 w-3" />
-                      copiar código
-                    </Button>
-                  </>
+              <span
+                className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                  group.visibility === "public"
+                    ? "bg-pastel-mint text-emerald-800"
+                    : "bg-pastel-lavender text-purple-800"
+                }`}
+              >
+                {group.visibility === "public" ? (
+                  <Globe2 className="h-3 w-3" />
+                ) : (
+                  <Lock className="h-3 w-3" />
                 )}
-                <span className="text-muted-foreground">
-                  {group.memberCount} membro
-                  {group.memberCount === 1 ? "" : "s"}
-                </span>
+                {group.visibility}
+              </span>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => copyCode(group.joinCode)}
+                  title="Copiar código"
+                  className="group/copy font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
+                >
+                  <span>{group.joinCode}</span>
+                  <Copy className="h-3 w-3 opacity-70 group-hover/copy:opacity-100" />
+                  <span className="sr-only group-hover/copy:not-sr-only group-hover/copy:ml-0.5 text-[10px] uppercase tracking-wider">
+                    copiar código
+                  </span>
+                </button>
+              )}
+            </div>
+            {group.description && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {group.description}
+              </p>
+            )}
+          </div>
+
+          {/* Members + action buttons aligned on the same row */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-muted-foreground mb-1.5">
+                {group.memberCount} membro
+                {group.memberCount === 1 ? "" : "s"}
               </div>
+              {group.membersDetail?.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {group.membersDetail.map((m) => (
+                    <span
+                      key={m.id}
+                      className="text-xs rounded-full bg-pastel-blush/60 px-3 py-1"
+                      title={m.email}
+                    >
+                      {m.displayName || m.username}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
               {!group.isMember && group.visibility === "public" && (
                 <Button
                   onClick={() => joinGroup.mutate()}
@@ -221,8 +304,8 @@ export default function GroupDetailPage() {
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          O envio de email é mockado — copiamos o link aqui para
-                          você compartilhar manualmente.
+                          O envio de email é mockado — copiamos o link aqui
+                          para você compartilhar manualmente.
                         </p>
                         {lastInvite && (
                           <div className="rounded-xl bg-pastel-sky/40 p-3 text-xs space-y-1">
@@ -329,20 +412,6 @@ export default function GroupDetailPage() {
               )}
             </div>
           </div>
-
-          {group.membersDetail?.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {group.membersDetail.map((m) => (
-                <span
-                  key={m.id}
-                  className="text-xs rounded-full bg-pastel-blush/60 px-3 py-1"
-                  title={m.email}
-                >
-                  {m.displayName || m.username}
-                </span>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -367,7 +436,6 @@ export default function GroupDetailPage() {
             onReorder={(ids) => reorder.mutate(ids)}
           />
         ) : (
-          // Read-only grid for public viewers (no drag)
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {albums.map((a) => (
               <a

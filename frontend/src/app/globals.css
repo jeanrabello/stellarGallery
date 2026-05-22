@@ -11,11 +11,11 @@
     --card: 0 0% 100%;
     --card-foreground: 270 25% 20%;
 
-    --primary: 286 55% 70%;           /* lavender */
-    --primary-foreground: 270 25% 18%;
+    --primary: 286 55% 62%;           /* lavender (a bit deeper for white text contrast) */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 145 55% 85%;         /* mint */
-    --secondary-foreground: 145 35% 22%;
+    --secondary: 286 45% 78%;         /* soft lavender (was mint) */
+    --secondary-foreground: 0 0% 100%;
 
     --accent: 22 100% 88%;            /* peach */
     --accent-foreground: 22 50% 25%;

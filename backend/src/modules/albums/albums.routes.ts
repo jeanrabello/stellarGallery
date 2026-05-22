@@ -6,6 +6,7 @@ import {
   AlbumDoc,
   Groups,
   Photos,
+  activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import CustomError from "@src/shared/classes/CustomError";
@@ -21,7 +22,13 @@ const reorderSchema = z.object({
   orderedIds: z.array(z.string()).min(1),
 });
 
-const albumToDto = (a: AlbumDoc & { coverUrl?: string | null }) => ({
+const setCoverSchema = z.object({
+  photoId: z.string(),
+});
+
+const albumToDto = (
+  a: AlbumDoc & { coverUrl?: string | null },
+) => ({
   id: a._id!.toString(),
   name: a.name,
   description: a.description,
@@ -29,6 +36,7 @@ const albumToDto = (a: AlbumDoc & { coverUrl?: string | null }) => ({
   ownerId: a.ownerId.toString(),
   position: a.position,
   coverUrl: a.coverUrl ?? null,
+  coverPhotoId: a.coverPhotoId ? a.coverPhotoId.toString() : null,
   createdAt: a.createdAt,
 });
 
@@ -48,14 +56,29 @@ const ensureUserCanAccessAlbum = async (
     throw new CustomError("Forbidden", 403);
 };
 
+// For each album: cover = chosen coverPhotoId (if still active) OR first active photo.
 const decorateCovers = async (
   albums: AlbumDoc[],
 ): Promise<(AlbumDoc & { coverUrl: string | null })[]> => {
   if (albums.length === 0) return [];
   const ids = albums.map((a) => a._id!);
-  const photos = await Photos()
+
+  const chosenIds = albums
+    .map((a) => a.coverPhotoId)
+    .filter((x): x is ObjectId => !!x);
+
+  const chosenPhotos = chosenIds.length
+    ? await Photos()
+        .find({ _id: { $in: chosenIds }, ...activeFilter })
+        .toArray()
+    : [];
+  const chosenById = new Map(
+    chosenPhotos.map((p) => [p._id!.toString(), p.url]),
+  );
+
+  const firstPhotos = await Photos()
     .aggregate([
-      { $match: { albumId: { $in: ids } } },
+      { $match: { albumId: { $in: ids }, ...activeFilter } },
       { $sort: { position: 1, createdAt: 1 } },
       {
         $group: {
@@ -65,11 +88,16 @@ const decorateCovers = async (
       },
     ])
     .toArray();
-  const map = new Map(photos.map((p: any) => [p._id.toString(), p.firstUrl]));
-  return albums.map((a) => ({
-    ...a,
-    coverUrl: map.get(a._id!.toString()) ?? null,
-  }));
+  const firstByAlbum = new Map(
+    firstPhotos.map((p: any) => [p._id.toString(), p.firstUrl]),
+  );
+
+  return albums.map((a) => {
+    const chosen =
+      a.coverPhotoId && chosenById.get(a.coverPhotoId.toString());
+    const cover = chosen || firstByAlbum.get(a._id!.toString()) || null;
+    return { ...a, coverUrl: cover };
+  });
 };
 
 export const albumRoutes = async (app: FastifyTypedInstance) => {
@@ -80,7 +108,11 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const list = await Albums()
-        .find({ ownerType: "user", ownerId: new ObjectId(me.id) })
+        .find({
+          ownerType: "user",
+          ownerId: new ObjectId(me.id),
+          ...activeFilter,
+        })
         .sort({ position: 1, createdAt: 1 })
         .toArray();
       const decorated = await decorateCovers(list);
@@ -108,7 +140,11 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
         throw new CustomError("Forbidden", 403);
 
       const list = await Albums()
-        .find({ ownerType: "group", ownerId: new ObjectId(groupId) })
+        .find({
+          ownerType: "group",
+          ownerId: new ObjectId(groupId),
+          ...activeFilter,
+        })
         .sort({ position: 1, createdAt: 1 })
         .toArray();
       const decorated = await decorateCovers(list);
@@ -140,7 +176,7 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
       }
 
       const lastPos = await Albums()
-        .find({ ownerType: body.ownerType, ownerId })
+        .find({ ownerType: body.ownerType, ownerId, ...activeFilter })
         .sort({ position: -1 })
         .limit(1)
         .toArray();
@@ -152,6 +188,7 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
         ownerType: body.ownerType,
         ownerId,
         position,
+        status: "active",
         createdAt: new Date(),
       };
       const r = await Albums().insertOne(doc as any);
@@ -171,7 +208,10 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { id } = req.params as { id: string };
-      const a = await Albums().findOne({ _id: new ObjectId(id) });
+      const a = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!a) throw new CustomError("Album not found", 404);
       await ensureUserCanAccessAlbum(a, me.id);
       const [decorated] = await decorateCovers([a]);
@@ -191,17 +231,26 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
     async (req) => {
       const me = getCurrentUser(req);
       const { id } = req.params as { id: string };
-      const a = await Albums().findOne({ _id: new ObjectId(id) });
+      const a = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
       if (!a) throw new CustomError("Album not found", 404);
       await ensureUserCanAccessAlbum(a, me.id);
-      // For group albums only owner of group can delete
       if (a.ownerType === "group") {
         const g = await Groups().findOne({ _id: a.ownerId });
         if (!g || g.ownerId.toString() !== me.id)
           throw new CustomError("Only group owner can delete", 403);
       }
-      await Photos().deleteMany({ albumId: a._id! });
-      await Albums().deleteOne({ _id: a._id! });
+      const now = new Date();
+      await Photos().updateMany(
+        { albumId: a._id! },
+        { $set: { status: "deleted", deletedAt: now } },
+      );
+      await Albums().updateOne(
+        { _id: a._id! },
+        { $set: { status: "deleted", deletedAt: now } },
+      );
       return { ok: true };
     },
   );
@@ -240,12 +289,52 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
             _id: new ObjectId(id),
             ownerType: body.ownerType,
             ownerId,
+            ...activeFilter,
           },
           update: { $set: { position: idx } },
         },
       }));
       if (ops.length) await Albums().bulkWrite(ops);
       return { ok: true };
+    },
+  );
+
+  // Set album cover photo
+  app.patch(
+    "/:id/cover",
+    {
+      preHandler: app.authenticate,
+      schema: {
+        params: z.object({ id: z.string() }),
+        body: setCoverSchema,
+        tags: ["albums"],
+      },
+    },
+    async (req) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as { id: string };
+      const { photoId } = req.body as z.infer<typeof setCoverSchema>;
+      const a = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
+      if (!a) throw new CustomError("Album not found", 404);
+      await ensureUserCanAccessAlbum(a, me.id);
+
+      const photo = await Photos().findOne({
+        _id: new ObjectId(photoId),
+        albumId: a._id!,
+        ...activeFilter,
+      });
+      if (!photo) throw new CustomError("Photo not in this album", 404);
+
+      await Albums().updateOne(
+        { _id: a._id! },
+        { $set: { coverPhotoId: photo._id! } },
+      );
+      const updated = { ...a, coverPhotoId: photo._id! };
+      const [decorated] = await decorateCovers([updated]);
+      return albumToDto(decorated);
     },
   );
 };

@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 import { Groups, Users } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
+import { ensureBucketReady, getS3Client } from "@src/loaders/s3";
+import config from "@config/api";
 import CustomError from "@src/shared/classes/CustomError";
 
 const createSchema = z.object({
@@ -29,6 +32,7 @@ const toDto = (g: any, currentUserId: string) => {
     isMember: memberIds.includes(currentUserId),
     members: memberIds,
     memberCount: memberIds.length,
+    coverUrl: g.coverUrl ?? null,
     createdAt: g.createdAt,
   };
 };
@@ -153,6 +157,61 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         throw new CustomError("Owner cannot leave its own group", 400);
       await Groups().updateOne({ _id: g._id }, { $pull: { members: uid } });
       return { ok: true };
+    },
+  );
+
+  // Upload group cover (multipart, field: file). Only group owner can set.
+  app.post(
+    "/:id/cover",
+    {
+      preHandler: app.authenticate,
+      schema: { params: idParam, tags: ["groups"] },
+    },
+    async (req) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as z.infer<typeof idParam>;
+      const g = await Groups().findOne({ _id: new ObjectId(id) });
+      if (!g) throw new CustomError("Group not found", 404);
+      if (g.ownerId.toString() !== me.id)
+        throw new CustomError("Only group owner can change the cover", 403);
+
+      const parts = req.parts();
+      let fileBuffer: Buffer | undefined;
+      let filename = "cover.bin";
+      let contentType = "application/octet-stream";
+      for await (const part of parts) {
+        if (part.type === "file") {
+          filename = part.filename || filename;
+          contentType = part.mimetype || contentType;
+          const chunks: Buffer[] = [];
+          for await (const chunk of part.file) chunks.push(chunk as Buffer);
+          fileBuffer = Buffer.concat(chunks);
+        }
+      }
+      if (!fileBuffer) throw new CustomError("file required", 400);
+
+      const ext = filename.includes(".") ? filename.split(".").pop() : "bin";
+      const s3Key = `groups/${g._id!.toString()}/cover-${Date.now()}-${randomBytes(
+        4,
+      ).toString("hex")}.${ext}`;
+
+      await ensureBucketReady();
+      await getS3Client().send(
+        new PutObjectCommand({
+          Bucket: config.s3.bucket,
+          Key: s3Key,
+          Body: fileBuffer,
+          ContentType: contentType,
+        }),
+      );
+      const coverUrl = `${config.s3.publicBaseUrl}/${s3Key}`;
+
+      await Groups().updateOne(
+        { _id: g._id! },
+        { $set: { coverUrl, coverS3Key: s3Key } },
+      );
+      const updated = await Groups().findOne({ _id: g._id! });
+      return toDto(updated, me.id);
     },
   );
 };

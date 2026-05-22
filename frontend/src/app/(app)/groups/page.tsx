@@ -31,7 +31,7 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Users, Globe2, Lock } from "lucide-react";
+import { Plus, Users, Globe2, Lock, Copy } from "lucide-react";
 import { StarLoader } from "@/components/ui/star-loader";
 
 type Group = {
@@ -42,6 +42,7 @@ type Group = {
   joinCode: string;
   memberCount: number;
   isOwner: boolean;
+  coverUrl?: string | null;
 };
 
 export default function GroupsPage() {
@@ -217,24 +218,40 @@ export default function GroupsPage() {
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
             <Card key={g.id} className="overflow-hidden">
-              <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
+              {g.coverUrl ? (
+                <div className="aspect-[16/7] relative bg-pastel-blush/40">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={g.coverUrl}
+                    alt={g.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="h-2 bg-gradient-to-r from-pastel-lavender via-pastel-blush to-pastel-peach" />
+              )}
               <CardHeader className="gap-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base sm:text-lg">{g.name}</CardTitle>
-                  <span
-                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                      g.visibility === "public"
-                        ? "bg-pastel-mint text-emerald-800"
-                        : "bg-pastel-lavender text-purple-800"
-                    }`}
-                  >
-                    {g.visibility === "public" ? (
-                      <Globe2 className="h-3 w-3" />
-                    ) : (
-                      <Lock className="h-3 w-3" />
-                    )}
-                    {g.visibility}
-                  </span>
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <CardTitle className="text-base sm:text-lg">
+                      {g.name}
+                    </CardTitle>
+                    <span
+                      className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                        g.visibility === "public"
+                          ? "bg-pastel-mint text-emerald-800"
+                          : "bg-pastel-lavender text-purple-800"
+                      }`}
+                    >
+                      {g.visibility === "public" ? (
+                        <Globe2 className="h-3 w-3" />
+                      ) : (
+                        <Lock className="h-3 w-3" />
+                      )}
+                      {g.visibility}
+                    </span>
+                    <JoinCodeChip code={g.joinCode} />
+                  </div>
                 </div>
                 {g.description && (
                   <CardDescription className="line-clamp-2">
@@ -247,9 +264,6 @@ export default function GroupsPage() {
                   <Users className="h-4 w-4" /> {g.memberCount} membro
                   {g.memberCount === 1 ? "" : "s"}
                 </span>
-                <span className="ml-auto font-mono text-[11px] bg-pastel-butter/60 rounded-md px-2 py-1">
-                  {g.joinCode}
-                </span>
               </CardContent>
               <CardFooter>
                 <Button asChild variant="secondary" className="w-full">
@@ -261,5 +275,33 @@ export default function GroupsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function JoinCodeChip({ code }: { code: string }) {
+  const { toast } = useToast();
+  const onCopy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(code);
+      toast({ title: "Código copiado!" });
+    } catch {
+      toast({ title: "Falha ao copiar", variant: "destructive" });
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      title="Copiar código"
+      className="group/copy font-mono text-[11px] bg-pastel-butter/70 rounded-md px-2 py-1 inline-flex items-center gap-1.5 hover:bg-pastel-butter transition-colors"
+    >
+      <span>{code}</span>
+      <Copy className="h-3 w-3 opacity-70 group-hover/copy:opacity-100" />
+      <span className="sr-only group-hover/copy:not-sr-only group-hover/copy:ml-0.5 text-[10px] uppercase tracking-wider">
+        copiar código
+      </span>
+    </button>
   );
 }

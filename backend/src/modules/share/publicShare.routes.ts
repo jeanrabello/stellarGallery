@@ -6,6 +6,7 @@ import {
   Photos,
   ShareTokens,
   Users,
+  activeFilter,
 } from "@src/shared/db/collections";
 import CustomError from "@src/shared/classes/CustomError";
 
@@ -43,14 +44,38 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
       if (!token) throw new CustomError("Share token required", 401);
 
       await validateToken(albumId, token);
-      const album = await Albums().findOne({ _id: new ObjectId(albumId) });
+      const album = await Albums().findOne({
+        _id: new ObjectId(albumId),
+        ...activeFilter,
+      });
       if (!album) throw new CustomError("Album not found", 404);
       const owner = await Users().findOne({ _id: album.ownerId });
 
       const photos = await Photos()
-        .find({ albumId: album._id! })
+        .find({ albumId: album._id!, ...activeFilter })
         .sort({ position: 1, createdAt: 1 })
         .toArray();
+
+      const uploaderIds = Array.from(
+        new Set(photos.map((p) => p.uploaderId.toString())),
+      ).map((id) => new ObjectId(id));
+      const uploaders = uploaderIds.length
+        ? await Users()
+            .find({ _id: { $in: uploaderIds } })
+            .project({ firstName: 1, lastName: 1, username: 1, email: 1 })
+            .toArray()
+        : [];
+      const fullNameById = new Map(
+        uploaders.map((u: any) => {
+          const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+          return [u._id.toString(), full || u.username || u.email];
+        }),
+      );
+
+      const ownerFullName = owner
+        ? [owner.firstName, owner.lastName].filter(Boolean).join(" ").trim() ||
+          owner.username
+        : null;
 
       return {
         album: {
@@ -58,7 +83,11 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
           name: album.name,
           description: album.description,
           owner: owner
-            ? { id: owner._id!.toString(), username: owner.username }
+            ? {
+                id: owner._id!.toString(),
+                username: owner.username,
+                displayName: ownerFullName,
+              }
             : null,
           createdAt: album.createdAt,
         },
@@ -66,7 +95,8 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
           id: p._id!.toString(),
           url: p.url,
           contentType: p.contentType,
-          uploaderName: p.uploaderName,
+          uploaderName:
+            fullNameById.get(p.uploaderId.toString()) || p.uploaderName,
           comment: p.comment,
           createdAt: p.createdAt,
         })),
