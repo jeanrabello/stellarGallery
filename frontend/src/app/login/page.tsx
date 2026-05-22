@@ -39,25 +39,6 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await loginEmail(identifier, password);
-      router.replace("/gallery");
-    } catch (e: any) {
-      toast({
-        title: "Falha no login",
-        description: e.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
-
   // Minimum dwell time for the full-screen overlay so the loader is always
   // visible long enough to feel intentional (UX preference).
   const OVERLAY_MIN_MS = 3000;
@@ -68,6 +49,27 @@ export default function LoginPage() {
     ]);
     return result;
   };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setGoogleRedirecting(true);
+    try {
+      await withMinDwell(loginEmail(identifier, password));
+      router.replace("/gallery");
+    } catch (e: any) {
+      toast({
+        title: "Falha no login",
+        description: e.message,
+        variant: "destructive",
+      });
+      setGoogleRedirecting(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
   const loginWithAccessToken = async (accessToken: string) => {
     setGoogleRedirecting(true);
