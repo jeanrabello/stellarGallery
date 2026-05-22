@@ -51,7 +51,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
                     active
-                      ? "bg-primary/20 text-foreground"
+                      ? "bg-primary text-primary-foreground"
                       : "hover:bg-accent/50",
                   )}
                 >
@@ -86,7 +86,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex-1 min-w-[110px] inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium",
-                  active ? "bg-primary/20" : "hover:bg-accent/50",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-accent/50",
                 )}
               >
                 <Icon className="h-4 w-4" />
