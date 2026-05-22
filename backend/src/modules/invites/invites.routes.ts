@@ -9,6 +9,7 @@ import {
   activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
+import { getEmailService } from "@src/shared/services/email";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
 
@@ -47,15 +48,39 @@ export const inviteRoutes = async (app: FastifyTypedInstance) => {
       await Invites().insertOne(doc as any);
 
       const inviteLink = `${config.app.frontendUrl}/invites/accept?token=${token}`;
-      // Mock email send — log only.
-      console.log(
-        `[INVITE-EMAIL-MOCK] To: ${email} | Group: ${g.name} | Link: ${inviteLink}`,
-      );
+      const inviter = await Users().findOne({ _id: new ObjectId(me.id) });
+      const inviterName =
+        [inviter?.firstName, inviter?.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        inviter?.username ||
+        me.email;
+
+      let sent = false;
+      try {
+        const result = await getEmailService().send({
+          kind: "group-invite",
+          payload: {
+            to: email,
+            groupName: g.name,
+            inviterName,
+            inviteLink,
+            joinCode: g.joinCode,
+          },
+        });
+        sent = result.sent;
+      } catch (err: any) {
+        // Keep the invite record even if delivery fails so the user can still
+        // share the link manually from the dialog.
+        req.log.error({ err }, "failed to send invite email");
+      }
+
       return {
         ok: true,
         token,
         inviteLink,
-        mockedEmail: true,
+        emailSent: sent,
         joinCode: g.joinCode,
       };
     },

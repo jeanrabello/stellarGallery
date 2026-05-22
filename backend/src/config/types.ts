@@ -44,4 +44,9 @@ export interface Config {
     clientSecret: string;
     mockEnabled: boolean;
   };
+  email: {
+    enabled: boolean;
+    apiKey: string;
+    from: string;
+  };
 }

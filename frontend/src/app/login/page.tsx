@@ -44,7 +44,58 @@ export default function LoginPage() {
     }
   };
 
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
+  const loginWithIdToken = async (idToken: string) => {
+    try {
+      await loginGoogle({ idToken });
+      router.replace("/gallery");
+    } catch (e: any) {
+      toast({
+        title: "Erro Google",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const openGoogle = () => {
+    if (googleClientId) {
+      // Real Google Identity Services flow.
+      const w = window as any;
+      const start = () => {
+        try {
+          w.google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: (resp: { credential?: string }) => {
+              if (resp?.credential) loginWithIdToken(resp.credential);
+            },
+            ux_mode: "popup",
+            auto_select: false,
+          });
+          w.google.accounts.id.prompt();
+        } catch (e: any) {
+          toast({
+            title: "Erro Google",
+            description: e?.message || "Falha ao iniciar GIS",
+            variant: "destructive",
+          });
+        }
+      };
+      if (w.google?.accounts?.id) {
+        start();
+      } else {
+        const s = document.createElement("script");
+        s.src = "https://accounts.google.com/gsi/client";
+        s.async = true;
+        s.defer = true;
+        s.onload = start;
+        document.head.appendChild(s);
+      }
+      return;
+    }
+
+    // Fallback: dev popup mock.
     const w = 460;
     const h = 580;
     const left = window.screenX + (window.outerWidth - w) / 2;

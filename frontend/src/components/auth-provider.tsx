@@ -25,9 +25,13 @@ type AuthCtx = {
     password: string;
   }) => Promise<void>;
   loginGoogle: (payload: {
-    email: string;
-    firstName: string;
-    lastName: string;
+    idToken?: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    googleId?: string;
+    avatarUrl?: string;
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -99,19 +103,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     issue(resp);
   };
   const loginGoogle = async (payload: {
-    email: string;
-    firstName: string;
-    lastName: string;
+    idToken?: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    googleId?: string;
+    avatarUrl?: string;
   }) => {
+    const body: Record<string, unknown> = {};
+    if (payload.idToken) body.idToken = payload.idToken;
+    if (payload.email) body.email = payload.email;
+    if (payload.firstName) body.firstName = payload.firstName;
+    if (payload.lastName) body.lastName = payload.lastName;
+    if (payload.name) body.name = payload.name;
+    else if (payload.firstName || payload.lastName)
+      body.name = `${payload.firstName || ""} ${payload.lastName || ""}`.trim();
+    if (payload.googleId) body.googleId = payload.googleId;
+    else if (payload.email) body.googleId = `google-${payload.email}`;
+    if (payload.avatarUrl) body.avatarUrl = payload.avatarUrl;
     const resp = await api("/auth/google", {
       method: "POST",
-      body: JSON.stringify({
-        email: payload.email,
-        name: `${payload.firstName} ${payload.lastName}`.trim(),
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        googleId: `google-${payload.email}`,
-      }),
+      body: JSON.stringify(body),
       auth: false,
     });
     issue(resp);

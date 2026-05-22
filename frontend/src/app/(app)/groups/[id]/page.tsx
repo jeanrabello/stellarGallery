@@ -102,10 +102,13 @@ export default function GroupDetailPage() {
 
   const sendInvite = useMutation({
     mutationFn: (email: string) =>
-      api<{ inviteLink: string; joinCode: string }>("/invites/send", {
-        method: "POST",
-        body: JSON.stringify({ groupId: id, email }),
-      }),
+      api<{ inviteLink: string; joinCode: string; emailSent: boolean }>(
+        "/invites/send",
+        {
+          method: "POST",
+          body: JSON.stringify({ groupId: id, email }),
+        },
+      ),
   });
 
   const joinGroup = useMutation({
@@ -350,9 +353,12 @@ export default function GroupDetailPage() {
                                 code: r.joinCode,
                               });
                               toast({
-                                title: "Convite criado",
-                                description:
-                                  "Link disponível abaixo (email mockado).",
+                                title: r.emailSent
+                                  ? "Convite enviado por email"
+                                  : "Convite criado",
+                                description: r.emailSent
+                                  ? `Email enviado para ${email}. O link também está disponível abaixo.`
+                                  : "Compartilhe o link/código abaixo manualmente.",
                               });
                               setEmail("");
                             } catch (e: any) {

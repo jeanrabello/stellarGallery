@@ -1,11 +1,20 @@
 import { z } from "zod";
 import { ObjectId } from "mongodb";
+import { OAuth2Client } from "google-auth-library";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 import { Users, UserDoc } from "@src/shared/db/collections";
 import { hashPassword, comparePassword } from "@src/shared/utils";
 import { JWTAuthService } from "@src/shared/services/JWTAuthService";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
+
+let googleOAuthClient: OAuth2Client | null = null;
+const getGoogleOAuthClient = (): OAuth2Client => {
+  if (!googleOAuthClient) {
+    googleOAuthClient = new OAuth2Client(config.google.clientId);
+  }
+  return googleOAuthClient;
+};
 
 const auth = new JWTAuthService();
 
@@ -102,7 +111,10 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
     },
   );
 
-  // Google OAuth — mock when GOOGLE_MOCK_ENABLED=true (default).
+  // Google OAuth — verifies a real id_token via google-auth-library when
+  // GOOGLE_CLIENT_ID is configured. Falls back to a permissive mock that
+  // decodes the JWT payload without signature verification when
+  // GOOGLE_MOCK_ENABLED=true (dev only).
   app.post(
     "/google",
     { schema: { body: googleSchema, tags: ["auth"] } },
@@ -116,7 +128,34 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
       let googleId = body.googleId;
       let avatarUrl = body.avatarUrl;
 
-      if (!email && body.idToken && config.google.mockEnabled) {
+      const hasRealConfig = !!config.google.clientId;
+      const useMock = !hasRealConfig && config.google.mockEnabled;
+
+      if (body.idToken && hasRealConfig) {
+        // Real verification path.
+        let ticket;
+        try {
+          ticket = await getGoogleOAuthClient().verifyIdToken({
+            idToken: body.idToken,
+            audience: config.google.clientId,
+          });
+        } catch (err: any) {
+          throw new CustomError(
+            `Invalid Google id_token: ${err?.message || "verification failed"}`,
+            401,
+          );
+        }
+        const payload = ticket.getPayload();
+        if (!payload?.email)
+          throw new CustomError("Google id_token has no email", 401);
+        email = payload.email;
+        name = payload.name;
+        firstName = payload.given_name;
+        lastName = payload.family_name;
+        googleId = payload.sub;
+        avatarUrl = payload.picture;
+      } else if (!email && body.idToken && useMock) {
+        // Dev fallback: decode JWT payload without verifying signature.
         try {
           const parts = body.idToken.split(".");
           if (parts.length >= 2) {
@@ -133,15 +172,21 @@ export const authRoutes = async (app: FastifyTypedInstance) => {
         } catch {
           /* ignore */
         }
+      } else if (!body.idToken && !hasRealConfig && !useMock) {
+        throw new CustomError(
+          "Google sign-in is not configured on this server",
+          400,
+        );
       }
 
-      if (!email) {
+      if (!email && useMock) {
         email = "demo.google@stellar.local";
         name = "Demo Google User";
         firstName = "Demo";
         lastName = "Google";
         googleId = "google-demo-1";
       }
+      if (!email) throw new CustomError("Missing Google account email", 400);
 
       if ((!firstName || !lastName) && name) {
         const parts = name.split(" ");

@@ -51,6 +51,11 @@ const getConfig = (): Config => ({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     mockEnabled: (process.env.GOOGLE_MOCK_ENABLED || "true") === "true",
   },
+  email: {
+    enabled: (process.env.EMAIL_ENABLED || "true") === "true",
+    apiKey: process.env.RESEND_API_KEY || "",
+    from: process.env.EMAIL_FROM || "Stellar Gallery <onboarding@resend.dev>",
+  },
 });
 
 const config = getConfig();
