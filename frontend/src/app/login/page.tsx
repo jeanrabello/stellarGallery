@@ -60,7 +60,7 @@ export default function LoginPage() {
 
   // Minimum dwell time for the full-screen overlay so the loader is always
   // visible long enough to feel intentional (UX preference).
-  const OVERLAY_MIN_MS = 5000;
+  const OVERLAY_MIN_MS = 3000;
   const withMinDwell = async <T,>(task: Promise<T>): Promise<T> => {
     const [result] = await Promise.all([
       task,
@@ -372,7 +372,7 @@ function UsernameStep({
     try {
       await Promise.all([
         completeGoogleSignup(pending.ticket, username.trim().toLowerCase()),
-        new Promise((r) => setTimeout(r, 5000)),
+        new Promise((r) => setTimeout(r, 3000)),
       ]);
       onCreated();
     } catch (e: any) {
