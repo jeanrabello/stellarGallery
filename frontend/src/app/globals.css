@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Pastel-tuned theme */
+    --background: 340 60% 98%;
+    --foreground: 270 25% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 270 25% 20%;
+
+    --primary: 286 55% 70%;           /* lavender */
+    --primary-foreground: 270 25% 18%;
+
+    --secondary: 145 55% 85%;         /* mint */
+    --secondary-foreground: 145 35% 22%;
+
+    --accent: 22 100% 88%;            /* peach */
+    --accent-foreground: 22 50% 25%;
+
+    --muted: 340 40% 95%;
+    --muted-foreground: 270 12% 45%;
+
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 286 30% 88%;
+    --input: 286 30% 90%;
+    --ring: 286 60% 75%;
+
+    --radius: 0.85rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(286, 70%, 92%, 0.7) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(145, 80%, 92%, 0.6) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(22, 90%, 92%, 0.6) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(340, 90%, 96%, 0.8) 0px, transparent 50%);
+    min-height: 100vh;
+  }
+}
