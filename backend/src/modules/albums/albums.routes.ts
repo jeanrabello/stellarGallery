@@ -9,6 +9,7 @@ import {
   activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
+import { signedObjectUrl } from "@src/loaders/s3";
 import CustomError from "@src/shared/classes/CustomError";
 
 const createSchema = z.object({
@@ -57,6 +58,7 @@ const ensureUserCanAccessAlbum = async (
 };
 
 // For each album: cover = chosen coverPhotoId (if still active) OR first active photo.
+// We sign the corresponding S3 key on demand instead of returning a raw URL.
 const decorateCovers = async (
   albums: AlbumDoc[],
 ): Promise<(AlbumDoc & { coverUrl: string | null })[]> => {
@@ -72,8 +74,8 @@ const decorateCovers = async (
         .find({ _id: { $in: chosenIds }, ...activeFilter })
         .toArray()
     : [];
-  const chosenById = new Map(
-    chosenPhotos.map((p) => [p._id!.toString(), p.url]),
+  const chosenKeyById = new Map(
+    chosenPhotos.map((p) => [p._id!.toString(), p.s3Key]),
   );
 
   const firstPhotos = await Photos()
@@ -83,21 +85,25 @@ const decorateCovers = async (
       {
         $group: {
           _id: "$albumId",
-          firstUrl: { $first: "$url" },
+          firstS3Key: { $first: "$s3Key" },
         },
       },
     ])
     .toArray();
-  const firstByAlbum = new Map(
-    firstPhotos.map((p: any) => [p._id.toString(), p.firstUrl]),
+  const firstKeyByAlbum = new Map(
+    firstPhotos.map((p: any) => [p._id.toString(), p.firstS3Key]),
   );
 
-  return albums.map((a) => {
-    const chosen =
-      a.coverPhotoId && chosenById.get(a.coverPhotoId.toString());
-    const cover = chosen || firstByAlbum.get(a._id!.toString()) || null;
-    return { ...a, coverUrl: cover };
-  });
+  return Promise.all(
+    albums.map(async (a) => {
+      const chosenKey =
+        a.coverPhotoId && chosenKeyById.get(a.coverPhotoId.toString());
+      const key =
+        chosenKey || firstKeyByAlbum.get(a._id!.toString()) || null;
+      const coverUrl = key ? await signedObjectUrl(key) : null;
+      return { ...a, coverUrl };
+    }),
+  );
 };
 
 export const albumRoutes = async (app: FastifyTypedInstance) => {

@@ -13,7 +13,11 @@ import {
   activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
-import { getS3Client, ensureBucketReady } from "@src/loaders/s3";
+import {
+  getS3Client,
+  ensureBucketReady,
+  signedObjectUrl,
+} from "@src/loaders/s3";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
 
@@ -29,13 +33,13 @@ const ensureAlbumWriteAccess = async (album: AlbumDoc, userId: string) => {
     throw new CustomError("Forbidden", 403);
 };
 
-const toDto = (p: PhotoDoc) => ({
+const toDto = async (p: PhotoDoc) => ({
   id: p._id!.toString(),
   albumId: p.albumId.toString(),
   uploaderId: p.uploaderId.toString(),
   uploaderName: p.uploaderName,
   comment: p.comment,
-  url: p.url,
+  url: await signedObjectUrl(p.s3Key),
   contentType: p.contentType,
   size: p.size,
   position: p.position,
@@ -78,7 +82,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         .find({ albumId: album._id!, ...activeFilter })
         .sort({ position: 1, createdAt: 1 })
         .toArray();
-      return list.map(toDto);
+      return Promise.all(list.map(toDto));
     },
   );
 
@@ -144,8 +148,6 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         }),
       );
 
-      const url = `${config.s3.publicBaseUrl}/${s3Key}`;
-
       const lastPos = await Photos()
         .find({ albumId: album._id!, ...activeFilter })
         .sort({ position: -1 })
@@ -159,7 +161,6 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         uploaderName,
         comment,
         s3Key,
-        url,
         contentType,
         size: fileBuffer.length,
         position,
@@ -167,7 +168,7 @@ export const photoRoutes = async (app: FastifyTypedInstance) => {
         createdAt: new Date(),
       };
       const r = await Photos().insertOne(doc as any);
-      return toDto({ ...doc, _id: r.insertedId });
+      return await toDto({ ...doc, _id: r.insertedId });
     },
   );
 

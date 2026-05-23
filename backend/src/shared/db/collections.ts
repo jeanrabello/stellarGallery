@@ -21,6 +21,8 @@ export interface GroupDoc {
   ownerId: ObjectId;
   members: ObjectId[];
   joinCode: string;
+  /** Legacy raw public URL — no longer written. Reads now generate a
+   * presigned URL from coverS3Key. */
   coverUrl?: string;
   coverS3Key?: string;
   status?: "active" | "deleted";
@@ -48,7 +50,10 @@ export interface PhotoDoc {
   uploaderName: string;
   comment?: string;
   s3Key: string;
-  url: string;
+  /** Legacy raw public URL — no longer written or read; reads now use
+   * presigned URLs generated on demand. Kept on the interface so older
+   * documents still parse. */
+  url?: string;
   contentType: string;
   size: number;
   position: number;

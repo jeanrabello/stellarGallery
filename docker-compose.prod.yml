@@ -43,6 +43,7 @@ services:
       - S3_BUCKET=${S3_BUCKET:-stellar-gallery}
       - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost:4566/stellar-gallery}
       - S3_FORCE_PATH_STYLE=true
+      - S3_SIGNED_URL_TTL_SECONDS=${S3_SIGNED_URL_TTL_SECONDS:-900}
       - GOOGLE_MOCK_ENABLED=${GOOGLE_MOCK_ENABLED:-true}
       # AWS SES (production: point SES_ENDPOINT to empty/AWS, drop SES_ACCESS_KEY_ID/SES_SECRET_ACCESS_KEY
       # so the default AWS credential provider chain — IAM role / env / ~/.aws — is used.)

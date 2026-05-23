@@ -11,7 +11,11 @@ import {
   activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
-import { ensureBucketReady, getS3Client } from "@src/loaders/s3";
+import {
+  ensureBucketReady,
+  getS3Client,
+  signedObjectUrl,
+} from "@src/loaders/s3";
 import config from "@config/api";
 import CustomError from "@src/shared/classes/CustomError";
 
@@ -25,8 +29,9 @@ const idParam = z.object({ id: z.string() });
 
 const genCode = () => randomBytes(4).toString("hex").toUpperCase();
 
-const toDto = (g: any, currentUserId: string) => {
+const toDto = async (g: any, currentUserId: string) => {
   const memberIds = g.members.map((m: ObjectId) => m.toString());
+  const coverUrl = g.coverS3Key ? await signedObjectUrl(g.coverS3Key) : null;
   return {
     id: g._id.toString(),
     name: g.name,
@@ -38,7 +43,7 @@ const toDto = (g: any, currentUserId: string) => {
     isMember: memberIds.includes(currentUserId),
     members: memberIds,
     memberCount: memberIds.length,
-    coverUrl: g.coverUrl ?? null,
+    coverUrl,
     createdAt: g.createdAt,
   };
 };
@@ -54,7 +59,7 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         .find({ members: uid, ...activeFilter })
         .sort({ createdAt: -1 })
         .toArray();
-      return list.map((g) => toDto(g, me.id));
+      return Promise.all(list.map((g) => toDto(g, me.id)));
     },
   );
 
@@ -81,7 +86,7 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         createdAt: new Date(),
       };
       const r = await Groups().insertOne(doc as any);
-      return toDto({ ...doc, _id: r.insertedId }, me.id);
+      return await toDto({ ...doc, _id: r.insertedId }, me.id);
     },
   );
 
@@ -110,7 +115,7 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
         .toArray();
 
       return {
-        ...toDto(g, me.id),
+        ...(await toDto(g, me.id)),
         membersDetail: memberDocs.map((u: any) => ({
           id: u._id.toString(),
           username: u.username,
@@ -144,13 +149,13 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
       if (!g) throw new CustomError("Invalid join code", 404);
       const uid = new ObjectId(me.id);
       if (g.members.some((m) => m.toString() === me.id))
-        return toDto(g, me.id);
+        return await toDto(g, me.id);
       await Groups().updateOne(
         { _id: g._id },
         { $addToSet: { members: uid } },
       );
       const updated = await Groups().findOne({ _id: g._id });
-      return toDto(updated, me.id);
+      return await toDto(updated, me.id);
     },
   );
 
@@ -264,14 +269,14 @@ export const groupRoutes = async (app: FastifyTypedInstance) => {
           ContentType: contentType,
         }),
       );
-      const coverUrl = `${config.s3.publicBaseUrl}/${s3Key}`;
 
+      // Cover URL is signed on demand by toDto — we only persist the S3 key.
       await Groups().updateOne(
         { _id: g._id! },
-        { $set: { coverUrl, coverS3Key: s3Key } },
+        { $set: { coverS3Key: s3Key }, $unset: { coverUrl: "" } },
       );
       const updated = await Groups().findOne({ _id: g._id! });
-      return toDto(updated, me.id);
+      return await toDto(updated, me.id);
     },
   );
 };

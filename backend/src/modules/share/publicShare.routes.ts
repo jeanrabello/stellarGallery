@@ -8,6 +8,7 @@ import {
   Users,
   activeFilter,
 } from "@src/shared/db/collections";
+import { signedObjectUrl } from "@src/loaders/s3";
 import CustomError from "@src/shared/classes/CustomError";
 
 const validateToken = async (albumId: string, token: string) => {
@@ -91,15 +92,17 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
             : null,
           createdAt: album.createdAt,
         },
-        photos: photos.map((p) => ({
-          id: p._id!.toString(),
-          url: p.url,
-          contentType: p.contentType,
-          uploaderName:
-            fullNameById.get(p.uploaderId.toString()) || p.uploaderName,
-          comment: p.comment,
-          createdAt: p.createdAt,
-        })),
+        photos: await Promise.all(
+          photos.map(async (p) => ({
+            id: p._id!.toString(),
+            url: await signedObjectUrl(p.s3Key),
+            contentType: p.contentType,
+            uploaderName:
+              fullNameById.get(p.uploaderId.toString()) || p.uploaderName,
+            comment: p.comment,
+            createdAt: p.createdAt,
+          })),
+        ),
       };
     },
   );

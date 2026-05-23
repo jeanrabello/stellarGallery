@@ -1,9 +1,10 @@
 import {
   CreateBucketCommand,
+  GetObjectCommand,
   HeadBucketCommand,
-  PutBucketPolicyCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import config from "@config/api";
 
 let s3Client: S3Client;
@@ -40,38 +41,14 @@ const tryCreateBucket = async (): Promise<boolean> => {
       return false;
     }
   }
-
-  try {
-    const policy = {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Sid: "PublicRead",
-          Effect: "Allow",
-          Principal: "*",
-          Action: ["s3:GetObject"],
-          Resource: [`arn:aws:s3:::${Bucket}/*`],
-        },
-      ],
-    };
-    await client.send(
-      new PutBucketPolicyCommand({
-        Bucket,
-        Policy: JSON.stringify(policy),
-      }),
-    );
-  } catch (err: any) {
-    console.warn("Could not set bucket policy:", err?.message || err);
-  }
+  // Bucket stays PRIVATE — every read happens through presigned URLs.
   return true;
 };
 
-// Used by loaders on boot — does not throw if LocalStack is still warming up.
 export const ensureS3Bucket = async () => {
   bucketReady = await tryCreateBucket();
 };
 
-// Called lazily before every upload. Retries once if the bucket wasn't ready at boot.
 export const ensureBucketReady = async (): Promise<void> => {
   if (bucketReady) return;
   if (!bucketCheckInFlight) {
@@ -82,3 +59,64 @@ export const ensureBucketReady = async (): Promise<void> => {
   }
   await bucketCheckInFlight;
 };
+
+// Per-request memoization to avoid re-signing the same key multiple times
+// inside a single response. Keyed by (s3Key + ttl). Hot keys also benefit
+// across requests — TTL of the cache itself is short.
+const signedCache = new Map<string, { url: string; expiresAt: number }>();
+
+const signKey = async (
+  s3Key: string,
+  expiresInSeconds = config.s3.signedUrlTtlSeconds,
+): Promise<string> => {
+  const cacheKey = `${s3Key}::${expiresInSeconds}`;
+  const now = Date.now();
+  const cached = signedCache.get(cacheKey);
+  // Reuse only if there's still more than 30s of validity left — avoids
+  // handing out a URL that's about to expire.
+  if (cached && cached.expiresAt - now > 30_000) return cached.url;
+
+  const url = await getSignedUrl(
+    getS3Client(),
+    new GetObjectCommand({ Bucket: config.s3.bucket, Key: s3Key }),
+    { expiresIn: expiresInSeconds },
+  );
+
+  // LocalStack returns URLs with the internal docker hostname when the SDK
+  // is talking to http://localstack:4566. Rewrite to the externally
+  // reachable host so the browser can fetch the image.
+  const externalUrl = rewriteHostForBrowser(url);
+
+  signedCache.set(cacheKey, {
+    url: externalUrl,
+    expiresAt: now + expiresInSeconds * 1000,
+  });
+  return externalUrl;
+};
+
+const rewriteHostForBrowser = (url: string): string => {
+  const publicBase = config.s3.publicBaseUrl?.trim();
+  if (!publicBase) return url;
+  // publicBaseUrl is like "http://localhost:4566/stellar-gallery" — extract
+  // just the origin so we can swap the SDK's internal one for it.
+  try {
+    const publicOrigin = new URL(publicBase).origin;
+    const parsed = new URL(url);
+    return `${publicOrigin}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+};
+
+/** Generate a short-lived signed URL for an S3 object. */
+export const signedObjectUrl = async (
+  s3Key: string,
+  expiresInSeconds?: number,
+): Promise<string> => signKey(s3Key, expiresInSeconds);
+
+/** Sign many keys in parallel; preserves order. */
+export const signedObjectUrls = async (
+  s3Keys: string[],
+  expiresInSeconds?: number,
+): Promise<string[]> =>
+  Promise.all(s3Keys.map((k) => signKey(k, expiresInSeconds)));

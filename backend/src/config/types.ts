@@ -38,6 +38,7 @@ export interface Config {
     bucket: string;
     publicBaseUrl: string;
     forcePathStyle: boolean;
+    signedUrlTtlSeconds: number;
   };
   google: {
     clientId: string;

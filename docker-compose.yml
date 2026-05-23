@@ -62,6 +62,7 @@ services:
       - S3_BUCKET=stellar-gallery
       - S3_PUBLIC_BASE_URL=http://localhost:4566/stellar-gallery
       - S3_FORCE_PATH_STYLE=true
+      - S3_SIGNED_URL_TTL_SECONDS=900
       - GOOGLE_MOCK_ENABLED=true
       - EMAIL_ENABLED=true
       - EMAIL_FROM=Stellar Gallery <no-reply@stellar-gallery.local>

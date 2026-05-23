@@ -45,6 +45,7 @@ const getConfig = (): Config => ({
       process.env.S3_PUBLIC_BASE_URL ||
       "http://localhost:4566/stellar-gallery",
     forcePathStyle: (process.env.S3_FORCE_PATH_STYLE || "true") === "true",
+    signedUrlTtlSeconds: Number(process.env.S3_SIGNED_URL_TTL_SECONDS) || 900,
   },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
