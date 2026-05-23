@@ -39,14 +39,6 @@ rateLimitPlugin(app);
 authMiddleware(app);
 errorHandler(app);
 
-// Cheap liveness probe — no DB/S3 dependencies so the platform's health
-// check never trips because of a slow downstream.
-app.get("/api/health", { schema: { hide: true } }, async () => ({
-  status: "ok",
-  env: config.app.env,
-  uptime: process.uptime(),
-}));
-
 app.register(routes, { prefix: "/api" });
 
 const startServer = async () => {

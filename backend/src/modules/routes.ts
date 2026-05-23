@@ -7,6 +7,7 @@ import { inviteRoutes } from "@modules/invites/invites.routes";
 import { shareRoutes } from "@modules/share/share.routes";
 import { publicShareRoutes } from "@modules/share/publicShare.routes";
 import { meRoutes } from "@modules/users/users.routes";
+import config from "@config/api";
 
 export const routes = (app: FastifyTypedInstance) => {
   app.register(authRoutes, { prefix: "/auth" });
@@ -18,5 +19,11 @@ export const routes = (app: FastifyTypedInstance) => {
   app.register(shareRoutes, { prefix: "/share-tokens" });
   app.register(publicShareRoutes, { prefix: "/public" });
 
-  app.get("/health", async () => ({ status: "ok" }));
+  // Liveness probe — no DB/S3 dependencies so the platform health check
+  // never trips because of a slow downstream.
+  app.get("/health", { schema: { hide: true } }, async () => ({
+    status: "ok",
+    env: config.app.env,
+    uptime: process.uptime(),
+  }));
 };
