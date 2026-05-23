@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { Trash2, Share2, Copy, Star, StarOff } from "lucide-react";
+import { Trash2, Share2, Copy, Star, StarOff, Loader2 } from "lucide-react";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { StarLoader } from "@/components/ui/star-loader";
 import { PhotoUploader } from "@/components/photo-uploader";
@@ -219,7 +219,9 @@ export default function AlbumPage() {
                         <Button variant="ghost">Fechar</Button>
                       </DialogClose>
                       <Button
+                        disabled={createShare.isPending}
                         onClick={async () => {
+                          if (createShare.isPending) return;
                           try {
                             const r = await createShare.mutateAsync(
                               shareName || undefined,
@@ -235,7 +237,10 @@ export default function AlbumPage() {
                           }
                         }}
                       >
-                        Gerar
+                        {createShare.isPending && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                        {createShare.isPending ? "Gerando…" : "Gerar"}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -267,15 +272,16 @@ export default function AlbumPage() {
                     <DialogClose asChild>
                       <Button variant="ghost">Cancelar</Button>
                     </DialogClose>
-                    <DialogClose asChild>
-                      <Button
-                        variant="destructive"
-                        onClick={() => deleteAlbum.mutate()}
-                        disabled={deleteAlbum.isPending}
-                      >
-                        Excluir
-                      </Button>
-                    </DialogClose>
+                    <Button
+                      variant="destructive"
+                      onClick={() => deleteAlbum.mutate()}
+                      disabled={deleteAlbum.isPending}
+                    >
+                      {deleteAlbum.isPending && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      {deleteAlbum.isPending ? "Excluindo…" : "Excluir"}
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -339,7 +345,11 @@ export default function AlbumPage() {
                       title="Definir como capa"
                       disabled={setCover.isPending}
                     >
-                      <StarOff className="h-3 w-3" />
+                      {setCover.isPending && setCover.variables === p.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <StarOff className="h-3 w-3" />
+                      )}
                     </Button>
                   )}
                   <Button
@@ -348,8 +358,13 @@ export default function AlbumPage() {
                     className="h-7 w-7"
                     onClick={() => del.mutate(p.id)}
                     title="Excluir"
+                    disabled={del.isPending && del.variables === p.id}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    {del.isPending && del.variables === p.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
                   </Button>
                 </div>
               </Card>

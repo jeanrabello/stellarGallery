@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, X } from "lucide-react";
+import { Copy, X, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { StarLoader } from "@/components/ui/star-loader";
 
@@ -90,9 +90,18 @@ export default function SharesPage() {
                       size="sm"
                       variant="destructive"
                       onClick={() => revoke.mutate(t.id)}
+                      disabled={
+                        revoke.isPending && revoke.variables === t.id
+                      }
                     >
-                      <X className="h-3 w-3" />
-                      Revogar
+                      {revoke.isPending && revoke.variables === t.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <X className="h-3 w-3" />
+                      )}
+                      {revoke.isPending && revoke.variables === t.id
+                        ? "Revogando…"
+                        : "Revogar"}
                     </Button>
                   )}
                 </div>

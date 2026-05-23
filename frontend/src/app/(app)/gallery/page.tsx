@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { StarLoader } from "@/components/ui/star-loader";
 
@@ -97,8 +97,9 @@ export default function MyGalleryPage() {
                 <Button variant="ghost">Cancelar</Button>
               </DialogClose>
               <Button
+                disabled={!name || createMut.isPending}
                 onClick={async () => {
-                  if (!name) return;
+                  if (!name || createMut.isPending) return;
                   try {
                     await createMut.mutateAsync({ name, description });
                     setName("");
@@ -113,7 +114,10 @@ export default function MyGalleryPage() {
                   }
                 }}
               >
-                Criar
+                {createMut.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                {createMut.isPending ? "Criando…" : "Criar"}
               </Button>
             </DialogFooter>
           </DialogContent>

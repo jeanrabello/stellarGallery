@@ -29,6 +29,7 @@ import {
   Lock,
   ImagePlus,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { StarLoader } from "@/components/ui/star-loader";
 
@@ -219,8 +220,16 @@ export default function GroupDetailPage() {
                 onClick={() => coverInputRef.current?.click()}
                 disabled={uploadCover.isPending}
               >
-                <ImagePlus className="h-4 w-4" />
-                {group.coverUrl ? "Trocar capa" : "Adicionar capa"}
+                {uploadCover.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="h-4 w-4" />
+                )}
+                {uploadCover.isPending
+                  ? "Enviando…"
+                  : group.coverUrl
+                    ? "Trocar capa"
+                    : "Adicionar capa"}
               </Button>
             </>
           )}
@@ -297,8 +306,12 @@ export default function GroupDetailPage() {
                   disabled={joinGroup.isPending}
                   data-testid="join-group-button"
                 >
-                  <UserPlus className="h-4 w-4" />
-                  Participar
+                  {joinGroup.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-4 w-4" />
+                  )}
+                  {joinGroup.isPending ? "Entrando…" : "Participar"}
                 </Button>
               )}
 
@@ -344,8 +357,9 @@ export default function GroupDetailPage() {
                           <Button variant="ghost">Fechar</Button>
                         </DialogClose>
                         <Button
+                          disabled={!email || sendInvite.isPending}
                           onClick={async () => {
-                            if (!email) return;
+                            if (!email || sendInvite.isPending) return;
                             try {
                               const r = await sendInvite.mutateAsync(email);
                               setLastInvite({
@@ -370,7 +384,10 @@ export default function GroupDetailPage() {
                             }
                           }}
                         >
-                          Enviar
+                          {sendInvite.isPending && (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                          {sendInvite.isPending ? "Enviando…" : "Enviar"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -408,8 +425,9 @@ export default function GroupDetailPage() {
                           <Button variant="ghost">Cancelar</Button>
                         </DialogClose>
                         <Button
+                          disabled={!name || createAlbum.isPending}
                           onClick={async () => {
-                            if (!name) return;
+                            if (!name || createAlbum.isPending) return;
                             try {
                               await createAlbum.mutateAsync({
                                 name,
@@ -427,7 +445,10 @@ export default function GroupDetailPage() {
                             }
                           }}
                         >
-                          Criar
+                          {createAlbum.isPending && (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                          {createAlbum.isPending ? "Criando…" : "Criar"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -454,15 +475,18 @@ export default function GroupDetailPage() {
                           <DialogClose asChild>
                             <Button variant="ghost">Cancelar</Button>
                           </DialogClose>
-                          <DialogClose asChild>
-                            <Button
-                              variant="destructive"
-                              onClick={() => deleteGroup.mutate()}
-                              disabled={deleteGroup.isPending}
-                            >
-                              Excluir
-                            </Button>
-                          </DialogClose>
+                          <Button
+                            variant="destructive"
+                            onClick={() => deleteGroup.mutate()}
+                            disabled={deleteGroup.isPending}
+                          >
+                            {deleteGroup.isPending && (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            )}
+                            {deleteGroup.isPending
+                              ? "Excluindo…"
+                              : "Excluir"}
+                          </Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>

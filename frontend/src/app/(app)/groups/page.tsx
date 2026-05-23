@@ -31,7 +31,7 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Users, Globe2, Lock, Copy } from "lucide-react";
+import { Plus, Users, Globe2, Lock, Copy, Loader2 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { StarLoader } from "@/components/ui/star-loader";
 
@@ -115,25 +115,28 @@ export default function GroupsPage() {
                 <DialogClose asChild>
                   <Button variant="ghost">Cancelar</Button>
                 </DialogClose>
-                <DialogClose asChild>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await join.mutateAsync(joinCode);
-                        toast({ title: "Você entrou no grupo!" });
-                        setJoinCode("");
-                      } catch (e: any) {
-                        toast({
-                          title: "Erro",
-                          description: e.message,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    Entrar
-                  </Button>
-                </DialogClose>
+                <Button
+                  disabled={!joinCode || join.isPending}
+                  onClick={async () => {
+                    if (!joinCode || join.isPending) return;
+                    try {
+                      await join.mutateAsync(joinCode);
+                      toast({ title: "Você entrou no grupo!" });
+                      setJoinCode("");
+                    } catch (e: any) {
+                      toast({
+                        title: "Erro",
+                        description: e.message,
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  {join.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {join.isPending ? "Entrando…" : "Entrar"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -182,8 +185,9 @@ export default function GroupsPage() {
                   <Button variant="ghost">Cancelar</Button>
                 </DialogClose>
                 <Button
+                  disabled={!name || create.isPending}
                   onClick={async () => {
-                    if (!name) return;
+                    if (!name || create.isPending) return;
                     try {
                       await create.mutateAsync({ name, description, visibility });
                       setName("");
@@ -198,7 +202,10 @@ export default function GroupsPage() {
                     }
                   }}
                 >
-                  Criar
+                  {create.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {create.isPending ? "Criando…" : "Criar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
