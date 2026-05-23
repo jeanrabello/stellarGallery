@@ -38,15 +38,20 @@ const getConfig = (): Config => ({
     disableLimitSecret: process.env.RATE_LIMIT_DISABLE_SECRET || "secret-key",
   },
   s3: {
-    endpoint: process.env.S3_ENDPOINT || "http://localhost:4566",
+    // Empty endpoint = let the SDK use the real AWS endpoint for the region.
+    // The LocalStack endpoint default lived here, but it leaked into
+    // production when the env var was unset, breaking DNS resolution. Now
+    // it must be set explicitly (docker-compose.yml does that for dev).
+    endpoint: process.env.S3_ENDPOINT || undefined,
     region: process.env.S3_REGION || "us-east-1",
     accessKeyId: process.env.S3_ACCESS_KEY_ID || "test",
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "test",
     bucket: process.env.S3_BUCKET || "stellar-gallery",
-    publicBaseUrl:
-      process.env.S3_PUBLIC_BASE_URL ||
-      "http://localhost:4566/stellar-gallery",
-    forcePathStyle: (process.env.S3_FORCE_PATH_STYLE || "true") === "true",
+    // Optional public CDN/host override; only useful when running behind a
+    // LocalStack/proxy whose internal hostname differs from the browser-facing
+    // one. Production AWS doesn't need this.
+    publicBaseUrl: process.env.S3_PUBLIC_BASE_URL || "",
+    forcePathStyle: (process.env.S3_FORCE_PATH_STYLE || "false") === "true",
     signedUrlTtlSeconds: Number(process.env.S3_SIGNED_URL_TTL_SECONDS) || 900,
   },
   google: {

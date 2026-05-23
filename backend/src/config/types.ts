@@ -31,7 +31,9 @@ export interface Config {
     disableLimitSecret: string;
   };
   s3: {
-    endpoint: string;
+    /** Custom endpoint (LocalStack/staging). Production AWS leaves this
+     * undefined so the SDK uses the official region endpoint. */
+    endpoint?: string;
     region: string;
     accessKeyId: string;
     secretAccessKey: string;
