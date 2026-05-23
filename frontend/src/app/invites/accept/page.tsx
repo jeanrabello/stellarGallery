@@ -5,7 +5,7 @@ import { api, tokenStore } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default function AcceptInvitePage() {
+function AcceptInviteInner() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token") || "";
@@ -36,23 +36,37 @@ export default function AcceptInvitePage() {
   }, [token, router]);
 
   return (
+    <Card className="max-w-md w-full">
+      <CardContent className="p-6 text-center space-y-3">
+        {status === "working" && <div>Aceitando convite…</div>}
+        {status === "ok" && <div>Convite aceito!</div>}
+        {status === "error" && (
+          <>
+            <div className="font-semibold">Convite inválido</div>
+            <div className="text-sm text-muted-foreground">{message}</div>
+            <Button onClick={() => router.replace("/groups")}>
+              Ir para grupos
+            </Button>
+          </>
+        )}
+        {!token && <div>Token não informado.</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
     <div className="min-h-screen grid place-items-center p-4">
-      <Card className="max-w-md w-full">
-        <CardContent className="p-6 text-center space-y-3">
-          {status === "working" && <div>Aceitando convite…</div>}
-          {status === "ok" && <div>Convite aceito!</div>}
-          {status === "error" && (
-            <>
-              <div className="font-semibold">Convite inválido</div>
-              <div className="text-sm text-muted-foreground">{message}</div>
-              <Button onClick={() => router.replace("/groups")}>
-                Ir para grupos
-              </Button>
-            </>
-          )}
-          {!token && <div>Token não informado.</div>}
-        </CardContent>
-      </Card>
+      <React.Suspense
+        fallback={
+          <Card className="max-w-md w-full">
+            <CardContent className="p-6 text-center">Carregando…</CardContent>
+          </Card>
+        }
+      >
+        <AcceptInviteInner />
+      </React.Suspense>
     </div>
   );
 }

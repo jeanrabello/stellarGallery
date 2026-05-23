@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name?: string;
     googleId?: string;
     avatarUrl?: string;
-  }) => {
+  }): Promise<GoogleAuthResult> => {
     const body: Record<string, unknown> = {};
     if (payload.idToken) body.idToken = payload.idToken;
     if (payload.accessToken) body.accessToken = payload.accessToken;
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } as GoogleSignupPending;
     }
     issue(resp);
-    return { needsUsername: false };
+    return { needsUsername: false as const };
   };
 
   const completeGoogleSignup = async (ticket: string, username: string) => {
