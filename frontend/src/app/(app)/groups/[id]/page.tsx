@@ -338,8 +338,9 @@ export default function GroupDetailPage() {
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          O envio de email é mockado — copiamos o link aqui
-                          para você compartilhar manualmente.
+                          Enviaremos um email com o convite. O link também
+                          fica disponível abaixo para você compartilhar
+                          manualmente, se quiser.
                         </p>
                         {lastInvite && (
                           <div className="rounded-xl bg-pastel-sky/40 p-3 text-xs space-y-1">
