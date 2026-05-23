@@ -5,7 +5,9 @@ const environment = (process.env.NODE_ENV || "development") as Environment;
 const getConfig = (): Config => ({
   app: {
     name: process.env.APP_NAME || "StellarGalleryAPI",
-    port: Number(process.env.APP_PORT) || 3001,
+    // PORT (uppercase) is what Render/Heroku/Fly inject. Falls back to
+    // APP_PORT for our docker-compose setup and finally to 3001.
+    port: Number(process.env.PORT || process.env.APP_PORT) || 3001,
     env: environment,
     host: process.env.APP_HOST || "0.0.0.0",
     url: process.env.BASE_URL || "http://0.0.0.0:3001",
