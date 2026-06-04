@@ -331,13 +331,15 @@ export default function AlbumPage() {
               )}
 
               <Button
-                variant="secondary"
+                size="icon"
+                className="bg-emerald-400 text-white hover:bg-emerald-400/90"
                 onClick={() => download.mutate()}
                 disabled={download.isPending || photos.length === 0}
+                aria-label="Baixar álbum (.zip)"
                 title={
                   photos.length === 0
                     ? "Álbum vazio"
-                    : "Baixar todas as fotos em .zip"
+                    : "Baixar álbum (.zip)"
                 }
               >
                 {download.isPending ? (
@@ -345,7 +347,6 @@ export default function AlbumPage() {
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                {download.isPending ? "Baixando…" : "Baixar álbum (.zip)"}
               </Button>
 
               {canManage && (
