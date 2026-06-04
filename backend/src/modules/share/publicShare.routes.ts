@@ -31,6 +31,9 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
   app.get(
     "/albums/:albumId",
     {
+      // CORS for this scope is opened to any origin in app.ts (the global
+      // delegator detects the /api/public prefix), because it's authenticated
+      // by ?token= / x-share-token rather than cookies.
       schema: {
         params: z.object({ albumId: z.string() }),
         querystring: z.object({ token: z.string().optional() }),
