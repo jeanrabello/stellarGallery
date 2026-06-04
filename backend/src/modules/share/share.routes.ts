@@ -2,7 +2,12 @@ import { z } from "zod";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "crypto";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
-import { Albums, ShareTokens, activeFilter } from "@src/shared/db/collections";
+import {
+  Albums,
+  Groups,
+  ShareTokens,
+  activeFilter,
+} from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
 import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
@@ -49,12 +54,29 @@ export const shareRoutes = async (app: FastifyTypedInstance) => {
         ...activeFilter,
       });
       if (!album) throw new CustomError("Album not found", 404);
-      // Only allowed for private user-owned albums (the requirement).
-      if (album.ownerType !== "user" || album.ownerId.toString() !== me.id)
-        throw new CustomError(
-          "Only your own private albums can be shared via token",
-          403,
-        );
+
+      // Who may mint a share token:
+      //  - user albums: only the owner of the album;
+      //  - group albums: only the group owner (members can view/upload, but
+      //    deciding to expose the album externally is an owner decision).
+      if (album.ownerType === "user") {
+        if (album.ownerId.toString() !== me.id)
+          throw new CustomError(
+            "Only your own albums can be shared via token",
+            403,
+          );
+      } else {
+        const group = await Groups().findOne({
+          _id: album.ownerId,
+          ...activeFilter,
+        });
+        if (!group) throw new CustomError("Group not found", 404);
+        if (group.ownerId.toString() !== me.id)
+          throw new CustomError(
+            "Only the group owner can share a group album via token",
+            403,
+          );
+      }
 
       const token = randomBytes(24).toString("hex");
       const doc = {

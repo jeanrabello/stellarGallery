@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 import {
   Albums,
+  Groups,
   Photos,
   ShareTokens,
   Users,
@@ -50,7 +51,23 @@ export const publicShareRoutes = async (app: FastifyTypedInstance) => {
         ...activeFilter,
       });
       if (!album) throw new CustomError("Album not found", 404);
-      const owner = await Users().findOne({ _id: album.ownerId });
+
+      // Resolve the "owner" to display. For group albums, album.ownerId is a
+      // GROUP id — we must look up the group (and ensure it's still active, so
+      // a revoked/deleted group can't keep leaking its albums through an old
+      // token) and then resolve the group's owner user. For user albums the
+      // ownerId is the user directly.
+      let owner;
+      if (album.ownerType === "group") {
+        const group = await Groups().findOne({
+          _id: album.ownerId,
+          ...activeFilter,
+        });
+        if (!group) throw new CustomError("Album not found", 404);
+        owner = await Users().findOne({ _id: group.ownerId });
+      } else {
+        owner = await Users().findOne({ _id: album.ownerId });
+      }
 
       const photos = await Photos()
         .find({ albumId: album._id!, ...activeFilter })

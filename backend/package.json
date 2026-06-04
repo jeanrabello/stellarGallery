@@ -9,7 +9,9 @@
   "scripts": {
     "start": "node ./dist/server.js",
     "dev": "tsx watch ./src/server.ts",
-    "build": "tsc && tsc-alias"
+    "build": "tsc && tsc-alias",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "author": "Jean Rabello",
   "license": "ISC",
@@ -23,6 +25,7 @@
     "@fastify/swagger": "9.4.0",
     "@fastify/swagger-ui": "5.2.0",
     "@types/jsonwebtoken": "9.0.10",
+    "archiver": "^7.0.1",
     "bcrypt": "6.0.0",
     "dotenv": "16.4.7",
     "fastify": "5.2.0",
@@ -33,10 +36,16 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/bcrypt": "6.0.0",
     "@types/node": "22.10.3",
+    "@types/yauzl": "^2.10.3",
+    "aws-sdk-client-mock": "^4.1.0",
+    "mongodb-memory-server": "^10.4.3",
     "tsc-alias": "1.8.10",
     "tsx": "4.19.2",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "^2.1.9",
+    "yauzl": "^3.3.2"
   }
 }

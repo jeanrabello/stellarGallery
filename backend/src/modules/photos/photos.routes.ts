@@ -22,6 +22,14 @@ import CustomError from "@src/shared/classes/CustomError";
 import config from "@config/api";
 
 const ensureAlbumWriteAccess = async (album: AlbumDoc, userId: string) => {
+  // A locked album accepts no new photos from anyone — the group owner must
+  // unlock it first (PATCH /albums/:id/unlock). 423 Locked is the precise
+  // status for "the resource exists but is intentionally not writable".
+  if (album.locked)
+    throw new CustomError(
+      "Album is locked; new uploads are disabled",
+      423,
+    );
   if (album.ownerType === "user") {
     if (album.ownerId.toString() !== userId)
       throw new CustomError("Forbidden", 403);

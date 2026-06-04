@@ -16,10 +16,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { Trash2, Share2, Copy, Star, StarOff, Loader2 } from "lucide-react";
+import {
+  Trash2,
+  Share2,
+  Copy,
+  Star,
+  StarOff,
+  Loader2,
+  Download,
+  Lock,
+  LockOpen,
+} from "lucide-react";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { StarLoader } from "@/components/ui/star-loader";
 import { PhotoUploader } from "@/components/photo-uploader";
+import { useAuth } from "@/components/auth-provider";
 
 type Photo = {
   id: string;
@@ -35,7 +46,15 @@ type Album = {
   name: string;
   description?: string;
   ownerType: "user" | "group";
+  ownerId: string;
   coverPhotoId?: string | null;
+  locked?: boolean;
+};
+
+type Group = {
+  id: string;
+  ownerId: string;
+  isOwner: boolean;
 };
 
 export default function AlbumPage() {
@@ -43,6 +62,7 @@ export default function AlbumPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: album, isLoading: albumLoading } = useQuery<Album>({
     queryKey: ["album", id],
@@ -53,6 +73,22 @@ export default function AlbumPage() {
     queryKey: ["photos", id],
     queryFn: () => api<Photo[]>(`/photos/album/${id}`),
   });
+
+  // For group albums we need to know whether the current user owns the group
+  // — only the group owner may share via token or lock/unlock the album.
+  const { data: group } = useQuery<Group>({
+    queryKey: ["group", album?.ownerId],
+    queryFn: () => api<Group>(`/groups/${album!.ownerId}`),
+    enabled: album?.ownerType === "group" && !!album?.ownerId,
+  });
+
+  // Who is allowed to manage (share/lock) this album.
+  const canManage =
+    album?.ownerType === "user"
+      ? album.ownerId === user?.id
+      : !!group?.isOwner;
+
+  const locked = !!album?.locked;
 
   const upload = useMutation({
     mutationFn: async (payload: { file: File; comment: string }) => {
@@ -117,6 +153,45 @@ export default function AlbumPage() {
     },
   });
 
+  const toggleLock = useMutation({
+    mutationFn: (next: boolean) =>
+      api(`/albums/${id}/${next ? "lock" : "unlock"}`, { method: "PATCH" }),
+    onSuccess: (_d, next) => {
+      qc.invalidateQueries({ queryKey: ["album", id] });
+      toast({
+        title: next ? "Álbum travado" : "Álbum destravado",
+        description: next
+          ? "Novos envios de fotos estão bloqueados."
+          : "Envios de fotos liberados.",
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const download = useMutation({
+    mutationFn: async () => {
+      // `raw` returns the Response so we can read the zip as a blob.
+      const res = await api<Response>(`/albums/${id}/download`, { raw: true });
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] || `${album?.name || "album"}.zip`;
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    },
+    onError: (e: any) => {
+      toast({ title: "Erro ao baixar", description: e.message, variant: "destructive" });
+    },
+  });
+
   const [openShare, setOpenShare] = React.useState(false);
   const [shareName, setShareName] = React.useState("");
   const [issued, setIssued] = React.useState<{
@@ -152,14 +227,22 @@ export default function AlbumPage() {
                   {album.description}
                 </p>
               )}
-              <div className="mt-1 text-xs text-muted-foreground">
-                {album?.ownerType === "group"
-                  ? "Álbum compartilhado de grupo"
-                  : "Álbum privado"}
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>
+                  {album?.ownerType === "group"
+                    ? "Álbum compartilhado de grupo"
+                    : "Álbum privado"}
+                </span>
+                {locked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                    <Lock className="h-3 w-3" />
+                    travado
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {album?.ownerType === "user" && (
+              {canManage && (
                 <Dialog open={openShare} onOpenChange={setOpenShare}>
                   <Button
                     variant="secondary"
@@ -247,11 +330,62 @@ export default function AlbumPage() {
                 </Dialog>
               )}
 
-              <PhotoUploader
-                onUpload={async ({ file, comment }) => {
-                  await upload.mutateAsync({ file, comment });
-                }}
-              />
+              <Button
+                variant="secondary"
+                onClick={() => download.mutate()}
+                disabled={download.isPending || photos.length === 0}
+                title={
+                  photos.length === 0
+                    ? "Álbum vazio"
+                    : "Baixar todas as fotos em .zip"
+                }
+              >
+                {download.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {download.isPending ? "Baixando…" : "Baixar álbum (.zip)"}
+              </Button>
+
+              {canManage && (
+                <Button
+                  variant="secondary"
+                  onClick={() => toggleLock.mutate(!locked)}
+                  disabled={toggleLock.isPending}
+                  title={
+                    locked
+                      ? "Liberar novos envios"
+                      : "Bloquear novos envios de fotos"
+                  }
+                >
+                  {toggleLock.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : locked ? (
+                    <LockOpen className="h-4 w-4" />
+                  ) : (
+                    <Lock className="h-4 w-4" />
+                  )}
+                  {toggleLock.isPending
+                    ? "Atualizando…"
+                    : locked
+                      ? "Destravar álbum"
+                      : "Travar álbum"}
+                </Button>
+              )}
+
+              {locked ? (
+                <div className="inline-flex items-center gap-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5" />
+                  Envios bloqueados
+                </div>
+              ) : (
+                <PhotoUploader
+                  onUpload={async ({ file, comment }) => {
+                    await upload.mutateAsync({ file, comment });
+                  }}
+                />
+              )}
 
               <Dialog>
                 <DialogTrigger asChild>
