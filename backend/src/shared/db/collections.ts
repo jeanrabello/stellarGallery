@@ -38,6 +38,10 @@ export interface AlbumDoc {
   ownerId: ObjectId;
   coverPhotoId?: ObjectId;
   position: number;
+  /** When true, no new photos can be uploaded to the album. Only the group
+   * owner (for group albums) toggles this. Undefined/false means unlocked.
+   * Existing photos stay readable and downloadable regardless. */
+  locked?: boolean;
   status?: "active" | "deleted";
   deletedAt?: Date;
   createdAt: Date;

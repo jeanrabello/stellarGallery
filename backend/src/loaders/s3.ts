@@ -5,6 +5,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "node:stream";
 import config from "@config/api";
 
 let s3Client: S3Client;
@@ -120,3 +121,20 @@ export const signedObjectUrls = async (
   expiresInSeconds?: number,
 ): Promise<string[]> =>
   Promise.all(s3Keys.map((k) => signKey(k, expiresInSeconds)));
+
+/**
+ * Fetch an S3 object as a Node Readable stream. Used by the album ZIP
+ * download so photos are piped straight from S3 into the archive without
+ * ever being fully buffered in memory. The SDK returns the body as a
+ * Readable when running under Node.
+ */
+export const getObjectStream = async (s3Key: string): Promise<Readable> => {
+  const res = await getS3Client().send(
+    new GetObjectCommand({ Bucket: config.s3.bucket, Key: s3Key }),
+  );
+  const body = res.Body;
+  if (!body) {
+    throw new Error(`S3 object has no body: ${s3Key}`);
+  }
+  return body as unknown as Readable;
+};

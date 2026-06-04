@@ -38,11 +38,18 @@ A API sobe em `http://localhost:3001/api` (porta `APP_PORT`). Swagger em `http:/
 
 ### Scripts
 
-| Comando         | O que faz                                |
-| --------------- | ---------------------------------------- |
-| `npm run dev`   | Watch mode com `tsx`                     |
-| `npm run build` | Compila TS para `dist/` + resolve aliases |
-| `npm start`     | Executa `dist/server.js`                 |
+| Comando            | O que faz                                          |
+| ------------------ | -------------------------------------------------- |
+| `npm run dev`      | Watch mode com `tsx`                               |
+| `npm run build`    | Compila TS para `dist/` + resolve aliases          |
+| `npm start`        | Executa `dist/server.js`                           |
+| `npm test`         | Testes (Vitest) com Mongo em memória + S3 mockado  |
+| `npm run test:watch` | Vitest em watch mode                             |
+
+> Os testes usam `mongodb-memory-server` (sobe um Mongo efêmero) e
+> `aws-sdk-client-mock` (intercepta o S3), então **não precisam** de Docker,
+> LocalStack ou rede. O app é montado via `buildApp()` e exercitado com
+> `app.inject()`.
 
 ## Variáveis de ambiente
 
@@ -83,7 +90,10 @@ A lista completa está no README raiz e exposta no Swagger em `/api/docs`. Os de
 
 - **Auth pública**: `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/google`, `POST /api/auth/refresh`
 - **Bearer**: usuário, grupos, álbuns, fotos, convites, share tokens
+- **Compartilhamento de álbum de grupo**: `POST /api/share-tokens` aceita álbuns de grupo — só o **dono do grupo** pode emitir o token. Gera uma URL pública (`/api/public/albums/:albumId?token=…`) para consumir as imagens via API sem login.
 - **Share token (sem login)**: `GET /api/public/albums/:albumId` — token via `?token=…` ou header `x-share-token`
+- **Travar/destravar álbum**: `PATCH /api/albums/:id/lock` e `PATCH /api/albums/:id/unlock` — só o dono (do grupo, para álbuns de grupo) trava novos envios. Upload em álbum travado retorna **423 Locked**.
+- **Download do álbum (.zip)**: `GET /api/albums/:id/download` (Bearer) — devolve um ZIP com todas as fotos do álbum, transmitido em streaming direto do S3 (sem bufferizar tudo em memória).
 
 ## Storage (S3 + LocalStack)
 

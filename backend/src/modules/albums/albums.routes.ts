@@ -9,8 +9,9 @@ import {
   activeFilter,
 } from "@src/shared/db/collections";
 import { getCurrentUser } from "@src/shared/middlewares/auth";
-import { signedObjectUrl } from "@src/loaders/s3";
+import { signedObjectUrl, getObjectStream } from "@src/loaders/s3";
 import CustomError from "@src/shared/classes/CustomError";
+import { streamAlbumZip } from "@modules/albums/albumDownload";
 
 const createSchema = z.object({
   name: z.string().min(1).max(80),
@@ -36,10 +37,29 @@ const albumToDto = (
   ownerType: a.ownerType,
   ownerId: a.ownerId.toString(),
   position: a.position,
+  locked: !!a.locked,
   coverUrl: a.coverUrl ?? null,
   coverPhotoId: a.coverPhotoId ? a.coverPhotoId.toString() : null,
   createdAt: a.createdAt,
 });
+
+// Lock/unlock is an ownership decision: for group albums only the group
+// owner may toggle it; user albums are toggled by the album owner. Returns
+// the group doc (for group albums) so callers can reuse it.
+const ensureUserCanManageAlbum = async (
+  album: AlbumDoc,
+  userId: string,
+): Promise<void> => {
+  if (album.ownerType === "user") {
+    if (album.ownerId.toString() !== userId)
+      throw new CustomError("Forbidden", 403);
+    return;
+  }
+  const g = await Groups().findOne({ _id: album.ownerId, ...activeFilter });
+  if (!g) throw new CustomError("Group not found", 404);
+  if (g.ownerId.toString() !== userId)
+    throw new CustomError("Only the group owner can manage this album", 403);
+};
 
 const ensureUserCanAccessAlbum = async (
   album: AlbumDoc,
@@ -349,4 +369,111 @@ export const albumRoutes = async (app: FastifyTypedInstance) => {
       return albumToDto(decorated);
     },
   );
+
+  // Lock an album: blocks new photo uploads until unlocked. Group albums can
+  // only be locked by the group owner; user albums by the album owner.
+  app.patch(
+    "/:id/lock",
+    {
+      preHandler: app.authenticate,
+      schema: {
+        params: z.object({ id: z.string() }),
+        tags: ["albums"],
+      },
+    },
+    async (req) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as { id: string };
+      const a = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
+      if (!a) throw new CustomError("Album not found", 404);
+      await ensureUserCanManageAlbum(a, me.id);
+      await Albums().updateOne({ _id: a._id! }, { $set: { locked: true } });
+      const [decorated] = await decorateCovers([{ ...a, locked: true }]);
+      return albumToDto(decorated);
+    },
+  );
+
+  // Unlock an album: re-enables uploads.
+  app.patch(
+    "/:id/unlock",
+    {
+      preHandler: app.authenticate,
+      schema: {
+        params: z.object({ id: z.string() }),
+        tags: ["albums"],
+      },
+    },
+    async (req) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as { id: string };
+      const a = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
+      if (!a) throw new CustomError("Album not found", 404);
+      await ensureUserCanManageAlbum(a, me.id);
+      await Albums().updateOne({ _id: a._id! }, { $set: { locked: false } });
+      const [decorated] = await decorateCovers([{ ...a, locked: false }]);
+      return albumToDto(decorated);
+    },
+  );
+
+  // Download the whole album as a single ZIP. Anyone who can access the album
+  // (owner, group member, or anyone for a public group) may download it. The
+  // archive is streamed straight from S3, never fully buffered in memory.
+  app.get(
+    "/:id/download",
+    {
+      preHandler: app.authenticate,
+      schema: {
+        params: z.object({ id: z.string() }),
+        tags: ["albums"],
+      },
+    },
+    async (req, reply) => {
+      const me = getCurrentUser(req);
+      const { id } = req.params as { id: string };
+      const album = await Albums().findOne({
+        _id: new ObjectId(id),
+        ...activeFilter,
+      });
+      if (!album) throw new CustomError("Album not found", 404);
+      await ensureUserCanAccessAlbum(album, me.id);
+
+      const photos = await Photos()
+        .find({ albumId: album._id!, ...activeFilter })
+        .sort({ position: 1, createdAt: 1 })
+        .toArray();
+      if (photos.length === 0)
+        throw new CustomError("Album has no photos to download", 404);
+
+      const filename = `${slugifyForFilename(album.name) || "album"}.zip`;
+      reply
+        .header("Content-Type", "application/zip")
+        .header(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`,
+        );
+
+      const archive = streamAlbumZip(photos, getObjectStream);
+      // Hand the raw stream to Fastify; it pipes to the socket as the zip is
+      // produced. Returning the stream keeps backpressure intact.
+      return reply.send(archive);
+    },
+  );
 };
+
+// Turn an album name into something safe for a Content-Disposition filename.
+const slugifyForFilename = (name: string): string =>
+  name
+    // Decompose accents (é -> e + ◌́) then drop everything that isn't a
+    // plain ASCII letter/number/dash/underscore/space — combining marks and
+    // other punctuation included.
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9-_ ]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60);

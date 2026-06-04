@@ -51,7 +51,8 @@ export default function SharesPage() {
       </div>
       {tokens.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white/40 p-10 text-center">
-          Nenhum token. Abra um álbum privado e clique em <b>Compartilhar via token</b>.
+          Nenhum token. Abra um álbum (privado ou de grupo, se você for o dono
+          do grupo) e clique em <b>Compartilhar via token</b>.
         </div>
       ) : (
         <div className="grid gap-3">

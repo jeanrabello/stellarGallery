@@ -11,51 +11,52 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { initializeLoaders } from "./loaders/index";
+import { FastifyTypedInstance } from "@src/shared/types/fastifyTypedInstance";
 
-const app = fastify({
-  logger: true,
-  // Trust X-Forwarded-* — required behind Render/Vercel/Cloudflare/etc.
-  // so req.ip and req.protocol reflect the real client.
-  trustProxy: true,
-}).withTypeProvider<ZodTypeProvider>();
+export interface BuildAppOptions {
+  /** Disable Fastify's request logger (handy in tests). Defaults to true. */
+  logger?: boolean;
+}
 
-app.setValidatorCompiler(validatorCompiler);
-app.setSerializerCompiler(serializerCompiler);
+/**
+ * Build a fully configured Fastify instance WITHOUT binding a port or
+ * connecting to downstreams. Tests use this with `app.inject()`; `server.ts`
+ * uses it as the base for the long-running process. Keeping construction and
+ * startup separate means importing the app never triggers a listen().
+ */
+export const buildApp = (
+  options: BuildAppOptions = {},
+): FastifyTypedInstance => {
+  const app = fastify({
+    logger: options.logger ?? true,
+    // Trust X-Forwarded-* — required behind Render/Vercel/Cloudflare/etc.
+    // so req.ip and req.protocol reflect the real client.
+    trustProxy: true,
+  }).withTypeProvider<ZodTypeProvider>();
 
-// CORS: in production lock to the configured FRONTEND_URL; in dev allow
-// any origin so localhost ports and tunnels Just Work.
-const corsOrigin =
-  config.app.env === "production"
-    ? [config.app.frontendUrl]
-    : true;
-app.register(fastifyCors, { origin: corsOrigin, credentials: true });
-app.register(multipart, {
-  limits: { fileSize: 25 * 1024 * 1024 },
-});
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
 
-swaggerPlugin(app);
-rateLimitPlugin(app);
-authMiddleware(app);
-errorHandler(app);
+  // CORS: in production lock to the configured FRONTEND_URL; in dev allow
+  // any origin so localhost ports and tunnels Just Work.
+  const corsOrigin =
+    config.app.env === "production" ? [config.app.frontendUrl] : true;
+  app.register(fastifyCors, { origin: corsOrigin, credentials: true });
+  app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024 },
+  });
 
-app.register(routes, { prefix: "/api" });
+  swaggerPlugin(app);
+  rateLimitPlugin(app);
+  authMiddleware(app);
+  errorHandler(app);
 
-const startServer = async () => {
-  try {
-    await initializeLoaders();
-    const address = await app.listen({
-      port: config.app.port,
-      host: config.app.host,
-    });
-    console.log(`Server listening at ${address}`);
-  } catch (err) {
-    app.log.error(err);
-    console.error("Failed to start application:", err);
-    process.exit(1);
-  }
+  app.register(routes, { prefix: "/api" });
+
+  return app;
 };
 
-startServer();
+// Default export kept for callers that just want a ready-to-use instance.
+const app = buildApp();
 
 export default app;
