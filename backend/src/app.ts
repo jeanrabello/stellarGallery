@@ -37,11 +37,28 @@ export const buildApp = (
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  // CORS: in production lock to the configured FRONTEND_URL; in dev allow
-  // any origin so localhost ports and tunnels Just Work.
-  const corsOrigin =
-    config.app.env === "production" ? [config.app.frontendUrl] : true;
-  app.register(fastifyCors, { origin: corsOrigin, credentials: true });
+  // CORS: in production lock to the configured FRONTEND_URL; in dev allow any
+  // origin so localhost ports and tunnels Just Work. The `/api/public` share
+  // endpoints are an exception — they're authenticated by a `?token=` (not
+  // cookies) and meant to be embedded by arbitrary third-party sites, so they
+  // must answer ANY origin. A `delegator` resolves the options per request
+  // (the plain `origin` callback can't see the URL): public routes reflect the
+  // origin WITHOUT credentials (wildcard origin + credentials is spec-illegal,
+  // and these routes never read cookies), everything else keeps the locked
+  // credentialed policy.
+  const devMode = config.app.env !== "production";
+  app.register(fastifyCors, {
+    delegator(req, cb) {
+      const isPublic = (req.url || "").startsWith("/api/public");
+      if (isPublic) {
+        return cb(null, { origin: true, credentials: false });
+      }
+      return cb(null, {
+        origin: devMode ? true : [config.app.frontendUrl],
+        credentials: true,
+      });
+    },
+  });
   app.register(multipart, {
     limits: { fileSize: 25 * 1024 * 1024 },
   });
