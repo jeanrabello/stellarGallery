@@ -13,3 +13,6 @@ coverage
 localstack-volume
 mongo_data
 .playwright-mcp/
+
+# Self-hosted GitHub Actions runner (binários + credenciais, específico da máquina)
+actions-runner/
