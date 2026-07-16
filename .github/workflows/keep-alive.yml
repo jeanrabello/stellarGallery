@@ -1,0 +1,58 @@
+name: Keep backend awake
+
+# Paliativo para o cold start do Render free tier: enquanto o serviço não
+# resolve o cold start, batemos no /api/health de fora para impedir que ele
+# hiberne após ~10-15 min de inatividade.
+#
+# Configure a URL base da API em um repo variable (ou secret):
+#   Settings > Secrets and variables > Actions > Variables > New
+#   Name: BACKEND_URL   Value: https://seu-servico.onrender.com
+# Se preferir, troque ${{ vars.BACKEND_URL }} abaixo pela URL fixa.
+
+on:
+  schedule:
+    # A cada 10 minutos. Obs.: o cron do GitHub Actions não é exato — pode
+    # atrasar alguns minutos em horários de pico, mas fica bem abaixo da
+    # janela de hibernação do Render.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # permite disparar manualmente pela aba Actions
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "::error::Defina o repo variable BACKEND_URL (Settings > Secrets and variables > Actions > Variables)."
+            exit 1
+          fi
+
+          URL="${BACKEND_URL%/}/api/health"
+          echo "Pingando $URL"
+
+          # Render pode levar dezenas de segundos para acordar; damos até
+          # 90s de resposta e tentamos algumas vezes antes de falhar.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" \
+              --connect-timeout 15 --max-time 90 \
+              "$URL") && [ "$code" = "200" ] && break
+            echo "Tentativa $attempt falhou (HTTP ${code:-000}). Aguardando 15s..."
+            sleep 15
+          done
+
+          echo "HTTP $code"
+          cat /tmp/body || true
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Health check não retornou 200."
+            exit 1
+          fi
+          echo "Backend acordado com sucesso."
