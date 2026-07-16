@@ -11,10 +11,12 @@ name: Keep backend awake
 
 on:
   schedule:
-    # A cada 10 minutos. Obs.: o cron do GitHub Actions não é exato — pode
-    # atrasar alguns minutos em horários de pico, mas fica bem abaixo da
-    # janela de hibernação do Render.
-    - cron: "*/10 * * * *"
+    # A cada 5 minutos. O cron do GitHub Actions é impontual — atrasa e às
+    # vezes pula execuções sob carga. Usar */5 (em vez de */10) dá margem
+    # para que, na prática, o ping caia dentro da janela de ~15 min de
+    # hibernação do Render mesmo quando o scheduler atrasa.
+    # Obs.: o schedule só dispara quando este arquivo está na branch default.
+    - cron: "*/5 * * * *"
   workflow_dispatch: {} # permite disparar manualmente pela aba Actions
 
 concurrency:
