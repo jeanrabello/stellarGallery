@@ -1,0 +1,48 @@
+name: Keep-alive self-test
+
+# TEMPORÁRIO: valida o loop de keep-alive no ambiente do GitHub em ~2 min
+# (versão curta do keep-alive.yml) para comprovar múltiplos pings 200 nos
+# logs sem esperar os 54 min da execução real. Removido após a validação.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+      PING_MINUTES: "2"
+      PING_INTERVAL: "30"
+    steps:
+      - name: Keep-alive loop (curto)
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "::error::BACKEND_URL não definido."; exit 1
+          fi
+          URL="${BACKEND_URL%/}/api/health"
+          deadline=$(( $(date +%s) + PING_MINUTES * 60 ))
+          ok=0; fail=0
+          ping_once() {
+            for attempt in 1 2 3; do
+              code=$(curl -sS -o /tmp/body -w "%{http_code}" \
+                --connect-timeout 15 --max-time 90 "$URL") \
+                && [ "$code" = "200" ] && { echo "$code"; return 0; }
+              sleep 10
+            done
+            echo "${code:-000}"; return 1
+          }
+          echo "Loop TESTE: ping a cada ${PING_INTERVAL}s por ${PING_MINUTES}min em $URL"
+          while :; do
+            now=$(date +%s)
+            if code=$(ping_once); then
+              ok=$((ok + 1)); echo "$(date -u +%H:%M:%S) HTTP $code ok (acertos=$ok falhas=$fail)"
+            else
+              fail=$((fail + 1)); echo "::warning::$(date -u +%H:%M:%S) ping falhou HTTP $code"
+            fi
+            [ $(( now + PING_INTERVAL )) -ge "$deadline" ] && break
+            sleep "$PING_INTERVAL"
+          done
+          echo "Fim do loop. Total: acertos=$ok falhas=$fail"
+          [ "$ok" -eq 0 ] && { echo "::error::Nenhum ping 200"; exit 1; } || echo "OK"
